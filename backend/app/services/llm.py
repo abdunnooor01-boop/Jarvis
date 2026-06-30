@@ -131,16 +131,16 @@ class AnthropicProvider(LLMProvider):
 
     async def stream_chat(
         self,
-        messages: list[dict[str, str]],
-        tools: list[dict[str, Any]] | None = None,
+        messages: list[dict[str, str]],  # noqa: ARG002
+        tools: list[dict[str, Any]] | None = None,  # noqa: ARG002
     ) -> AsyncGenerator[dict[str, Any], None]:
         yield {"type": "content", "content": "[Anthropic provider not yet implemented]"}
         yield {"type": "done"}
 
     async def chat(
         self,
-        messages: list[dict[str, str]],
-        tools: list[dict[str, Any]] | None = None,
+        messages: list[dict[str, str]],  # noqa: ARG002
+        tools: list[dict[str, Any]] | None = None,  # noqa: ARG002
     ) -> dict[str, Any]:
         return {"content": "[Anthropic provider not yet implemented]", "role": "assistant"}
 
@@ -153,16 +153,16 @@ class GeminiProvider(LLMProvider):
 
     async def stream_chat(
         self,
-        messages: list[dict[str, str]],
-        tools: list[dict[str, Any]] | None = None,
+        messages: list[dict[str, str]],  # noqa: ARG002
+        tools: list[dict[str, Any]] | None = None,  # noqa: ARG002
     ) -> AsyncGenerator[dict[str, Any], None]:
         yield {"type": "content", "content": "[Gemini provider not yet implemented]"}
         yield {"type": "done"}
 
     async def chat(
         self,
-        messages: list[dict[str, str]],
-        tools: list[dict[str, Any]] | None = None,
+        messages: list[dict[str, str]],  # noqa: ARG002
+        tools: list[dict[str, Any]] | None = None,  # noqa: ARG002
     ) -> dict[str, Any]:
         return {"content": "[Gemini provider not yet implemented]", "role": "assistant"}
 

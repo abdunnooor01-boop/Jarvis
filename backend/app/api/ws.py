@@ -14,7 +14,7 @@ from app.database import async_session_factory
 from app.models.conversation import Conversation
 from app.models.message import Message
 from app.models.user import User
-from app.services.llm import LLMService, get_llm_service
+from app.services.llm import get_llm_service
 from app.services.tool_executor import ToolExecutor
 
 router = APIRouter()
@@ -61,7 +61,9 @@ async def chat_websocket(websocket: WebSocket) -> None:
         try:
             payload = decode_token(token)
             if payload.get("type") != "access":
-                await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token type")
+                await websocket.close(
+                    code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token type"
+                )
                 return
             result = await db_session.execute(select(User).where(User.id == UUID(payload["sub"])))
             user = result.scalar_one_or_none()
@@ -102,21 +104,25 @@ async def chat_websocket(websocket: WebSocket) -> None:
                         )
                         conversation = result.scalar_one_or_none()
                         if conversation is None:
-                            await websocket.send_json({
-                                "type": "error",
-                                "detail": "Conversation not found",
-                            })
+                            await websocket.send_json(
+                                {
+                                    "type": "error",
+                                    "detail": "Conversation not found",
+                                }
+                            )
                             continue
                     else:
                         conversation = Conversation(user_id=user.id, title=content[:50])
                         db_session.add(conversation)
                         await db_session.flush()
                         await db_session.refresh(conversation)
-                        await websocket.send_json({
-                            "type": "conversation_created",
-                            "conversation_id": str(conversation.id),
-                            "title": conversation.title,
-                        })
+                        await websocket.send_json(
+                            {
+                                "type": "conversation_created",
+                                "conversation_id": str(conversation.id),
+                                "title": conversation.title,
+                            }
+                        )
 
                     # Save user message
                     user_message = Message(
@@ -135,10 +141,7 @@ async def chat_websocket(websocket: WebSocket) -> None:
                     history = history_result.scalars().all()
 
                     # Build context for LLM
-                    messages_for_llm = [
-                        {"role": m.role, "content": m.content}
-                        for m in history
-                    ]
+                    messages_for_llm = [{"role": m.role, "content": m.content} for m in history]
 
                     # Stream response from LLM
                     full_response = ""
@@ -148,32 +151,40 @@ async def chat_websocket(websocket: WebSocket) -> None:
                     ):
                         if chunk["type"] == "content":
                             full_response += chunk["content"]
-                            await websocket.send_json({
-                                "type": "chunk",
-                                "content": chunk["content"],
-                            })
+                            await websocket.send_json(
+                                {
+                                    "type": "chunk",
+                                    "content": chunk["content"],
+                                }
+                            )
                         elif chunk["type"] == "tool_call":
-                            await websocket.send_json({
-                                "type": "tool_call",
-                                "tool_call_id": chunk.get("id"),
-                                "tool_name": chunk.get("name"),
-                                "arguments": chunk.get("arguments"),
-                            })
+                            await websocket.send_json(
+                                {
+                                    "type": "tool_call",
+                                    "tool_call_id": chunk.get("id"),
+                                    "tool_name": chunk.get("name"),
+                                    "arguments": chunk.get("arguments"),
+                                }
+                            )
                             # Execute tool
                             result = await tool_executor.execute(
                                 tool_name=chunk.get("name", ""),
                                 arguments=chunk.get("arguments", {}),
                             )
-                            await websocket.send_json({
-                                "type": "tool_result",
-                                "tool_call_id": chunk.get("id"),
-                                "result": result,
-                            })
+                            await websocket.send_json(
+                                {
+                                    "type": "tool_result",
+                                    "tool_call_id": chunk.get("id"),
+                                    "result": result,
+                                }
+                            )
                         elif chunk["type"] == "error":
-                            await websocket.send_json({
-                                "type": "error",
-                                "detail": chunk.get("content", "LLM error"),
-                            })
+                            await websocket.send_json(
+                                {
+                                    "type": "error",
+                                    "detail": chunk.get("content", "LLM error"),
+                                }
+                            )
 
                     # Save assistant message
                     if full_response:
@@ -189,10 +200,12 @@ async def chat_websocket(websocket: WebSocket) -> None:
 
                     await db_session.commit()
 
-                    await websocket.send_json({
-                        "type": "done",
-                        "conversation_id": str(conversation.id),
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "done",
+                            "conversation_id": str(conversation.id),
+                        }
+                    )
 
                 elif msg_type == "ping":
                     await websocket.send_json({"type": "pong"})

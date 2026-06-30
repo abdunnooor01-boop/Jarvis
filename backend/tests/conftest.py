@@ -47,25 +47,6 @@ async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
-# Fix UUID type handling for SQLite
-from sqlalchemy import TypeDecorator
-from sqlalchemy.dialects.sqlite import JSON as SQLiteJSON
-
-
-class UUIDType(TypeDecorator):
-    """Store UUIDs as strings in SQLite."""
-    impl = SQLiteJSON
-    cache_ok = True
-
-    def process_bind_param(self, value, dialect):
-        if value is not None:
-            return str(value)
-        return value
-
-    def process_result_value(self, value, dialect):
-        return value
-
-
 @pytest_asyncio.fixture
 async def client() -> AsyncGenerator[AsyncClient, None]:
     """HTTP client for testing."""
@@ -87,6 +68,7 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 def sample_user_data() -> dict[str, Any]:
     """Sample user registration data with unique email per test."""
     import uuid
+
     return {
         "email": f"test-{uuid.uuid4().hex[:8]}@example.com",
         "password": "testpassword123",

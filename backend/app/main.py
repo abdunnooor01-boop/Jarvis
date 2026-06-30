@@ -12,7 +12,7 @@ from app.api import auth as auth_routes
 from app.api import chat as chat_routes
 from app.api.ws import router as ws_routes
 from app.config import settings
-from app.core.logging import setup_logging, get_logger
+from app.core.logging import get_logger, setup_logging
 
 
 @asynccontextmanager

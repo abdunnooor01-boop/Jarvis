@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from app.tools.base import BaseTool
 from app.tools.file_ops import FileOpsTool
 from app.tools.web_search import WebSearchTool
 

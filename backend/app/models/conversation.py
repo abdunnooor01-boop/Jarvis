@@ -49,11 +49,11 @@ class Conversation(Base):
     )
 
     # Relationships
-    user: Mapped["User"] = relationship(
+    user: Mapped[User] = relationship(
         "User",
         back_populates="conversations",
     )
-    messages: Mapped[list["Message"]] = relationship(
+    messages: Mapped[list[Message]] = relationship(
         "Message",
         back_populates="conversation",
         cascade="all, delete-orphan",

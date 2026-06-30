@@ -31,7 +31,10 @@ class FileOpsTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Read and write files in the user's sandbox. Supports read, write, list, and delete operations."
+        return (
+            "Read and write files in the user's sandbox. "
+            "Supports read, write, list, and delete operations."
+        )
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -55,8 +58,15 @@ class FileOpsTool(BaseTool):
             "required": ["operation", "path"],
         }
 
-    async def execute(self, operation: str, path: str, content: str | None = None, **kwargs: Any) -> Any:
+    async def execute(  # type: ignore[override]
+        self,
+        operation: str,
+        path: str,
+        content: str | None = None,
+        **kwargs: Any,
+    ) -> Any:
         """Execute a file operation."""
+        _ = kwargs  # Allow extra kwargs for interface compatibility
         resolved = self._resolve_path(path)
         if resolved is None:
             return {"error": f"Access denied: path '{path}' is outside the allowed sandbox"}
@@ -125,11 +135,13 @@ class FileOpsTool(BaseTool):
         items = []
         for entry in os.listdir(str(path)):
             full = path / entry
-            items.append({
-                "name": entry,
-                "type": "directory" if full.is_dir() else "file",
-                "size": full.stat().st_size if full.is_file() else 0,
-            })
+            items.append(
+                {
+                    "name": entry,
+                    "type": "directory" if full.is_dir() else "file",
+                    "size": full.stat().st_size if full.is_file() else 0,
+                }
+            )
 
         return {"path": str(path), "items": items, "count": len(items)}
 
@@ -142,6 +154,7 @@ class FileOpsTool(BaseTool):
             return {"path": str(path), "status": "deleted"}
         elif path.is_dir():
             import shutil
+
             shutil.rmtree(str(path))
             return {"path": str(path), "status": "deleted"}
 

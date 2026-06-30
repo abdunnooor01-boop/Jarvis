@@ -26,6 +26,7 @@ async_session_factory = async_sessionmaker(
 
 class Base(DeclarativeBase):
     """Base class for all ORM models."""
+
     __abstract__ = True
 
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from jose import JWTError
 from sqlalchemy import select
@@ -88,8 +90,14 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)) -> T
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token type — use a refresh token",
             )
-        user_id = payload.get("sub")
-    except JWTError:
+        user_id_str = payload.get("sub")
+        if user_id_str is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token payload",
+            )
+        user_id = uuid.UUID(user_id_str)
+    except (JWTError, ValueError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired refresh token",

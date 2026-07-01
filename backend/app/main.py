@@ -13,6 +13,7 @@ from app.api import chat as chat_routes
 from app.api.ws import router as ws_routes
 from app.config import settings
 from app.core.logging import get_logger, setup_logging
+from app.database import Base, engine
 
 
 @asynccontextmanager
@@ -20,6 +21,11 @@ async def lifespan(app: FastAPI) -> None:  # noqa: ARG001
     """Application lifespan — startup and shutdown."""
     setup_logging()
     logger = get_logger(__name__)
+
+    # Create database tables on startup (dev mode — switch to Alembic for prod)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
     logger.info(
         "Starting Jarvis API",
         environment=settings.environment,

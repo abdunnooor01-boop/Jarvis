@@ -8,6 +8,14 @@ from app.core.logging import get_logger
 from app.tools.base import BaseTool
 from app.tools.file_ops import FileOpsTool
 from app.tools.web_search import WebSearchTool
+from app.tools.clipboard import ClipboardTool
+from app.tools.terminal import TerminalTool
+from app.tools.screenshot import ScreenshotTool
+from app.tools.screen_read import ScreenReadTool
+from app.tools.mouse import MouseTool
+from app.tools.keyboard import KeyboardTool
+from app.tools.app_launch import AppLaunchTool
+from app.tools.browser import BrowserTool
 
 logger = get_logger(__name__)
 
@@ -23,6 +31,14 @@ class ToolExecutor:
         """Register built-in tools."""
         self.register(WebSearchTool())
         self.register(FileOpsTool())
+        self.register(ClipboardTool())
+        self.register(TerminalTool())
+        self.register(ScreenshotTool())
+        self.register(ScreenReadTool())
+        self.register(MouseTool())
+        self.register(KeyboardTool())
+        self.register(AppLaunchTool())
+        self.register(BrowserTool())
         logger.info("Default tools registered", count=len(self._tools))
 
     def register(self, tool: BaseTool) -> None:

@@ -28,6 +28,13 @@ redis[hiredis]==5.2.1
 # WebSocket
 websockets==14.1
 
+# Voice
+edge-tts>=6.1.0
+silero-vad>=5.1.0
+onnxruntime>=1.17.0
+webrtcvad>=2.0.10
+pydub>=0.25.1
+
 # Utilities
 python-multipart==0.0.19
 email-validator==2.3.0

@@ -6,6 +6,7 @@ import Sidebar from './components/Sidebar'
 import Login from './components/Login'
 import Signup from './components/Signup'
 import SettingsModal from './components/SettingsModal'
+import MemoryIndicator from './components/MemoryIndicator'
 
 const App: React.FC = () => {
   const { isAuthenticated, setAuth } = useAuthStore()
@@ -56,6 +57,7 @@ const App: React.FC = () => {
         <header className="h-14 flex items-center px-6 border-b border-slate-200 dark:border-slate-800 flex-shrink-0 draggable">
           <h1 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Jarvis</h1>
         </header>
+        <MemoryIndicator />
         <ChatWindow />
       </main>
       {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}

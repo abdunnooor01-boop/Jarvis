@@ -1,12 +1,14 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useAuthStore } from '../stores/auth'
 import { useChatStore, Message } from '../stores/chat'
+import { useMemoryStore } from '../stores/memory'
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws/v1/chat'
 
 export const useWebSocket = () => {
   const { token } = useAuthStore()
   const { currentConversationId, addMessage, setLoading } = useChatStore()
+  const { setRecalling, addMemoryContext } = useMemoryStore()
   const ws = useRef<WebSocket | null>(null)
   const reconnectTimeout = useRef<NodeJS.Timeout>()
 
@@ -33,8 +35,16 @@ export const useWebSocket = () => {
         }
         addMessage(currentConversationId, assistantMessage)
         setLoading(false)
+        setRecalling(false)
       } else if (data.type === 'stream_start') {
         setLoading(true)
+      } else if (data.type === 'memory_recall') {
+        setRecalling(true)
+        if (data.context) {
+          addMemoryContext(data.context)
+        }
+      } else if (data.type === 'done') {
+        setRecalling(false)
       }
     }
 

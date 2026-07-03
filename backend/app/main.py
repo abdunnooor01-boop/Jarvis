@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from app.api import auth as auth_routes
 from app.api import chat as chat_routes
 from app.api import voice as voice_routes
+from app.api import plugins as plugin_routes
 from app.api.ws import router as ws_routes
 from app.config import settings
 from app.core.logging import get_logger, setup_logging
@@ -26,6 +27,13 @@ async def lifespan(app: FastAPI) -> None:  # noqa: ARG001
     # Create database tables on startup (dev mode — switch to Alembic for prod)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Preload plugins
+    try:
+        from app.services.tool_executor import ToolExecutor
+        await ToolExecutor.preload_plugins()
+    except Exception as preload_err:
+        logger.error("Failed to preload plugins during startup", error=str(preload_err))
 
     logger.info(
         "Starting Jarvis API",
@@ -57,6 +65,7 @@ app.add_middleware(
 app.include_router(auth_routes.router)
 app.include_router(chat_routes.router)
 app.include_router(voice_routes.router)
+app.include_router(plugin_routes.router)
 app.include_router(ws_routes)
 
 

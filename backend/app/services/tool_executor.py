@@ -23,9 +23,38 @@ logger = get_logger(__name__)
 class ToolExecutor:
     """Receives tool call requests and dispatches to registered tools."""
 
-    def __init__(self) -> None:
+    _plugins_loaded = False
+    _plugin_tools: dict[str, BaseTool] = {}
+
+    @classmethod
+    async def preload_plugins(cls) -> None:
+        """Preload plugins asynchronously during application startup."""
+        if not cls._plugins_loaded:
+            logger.info("Preloading plugins during startup...")
+            from app.services.plugin_loader import PluginLoader
+
+            # Create a temporary executor that skips plugins to avoid recursion
+            executor = cls(skip_plugins=True)
+            loader = PluginLoader()
+            await loader.load_plugins(executor)
+
+            # Save only the plugin tools
+            cls._plugin_tools = {
+                name: tool
+                for name, tool in executor._tools.items()
+                if name not in executor._default_tool_names
+            }
+            cls._plugins_loaded = True
+            logger.info("Plugins preloaded successfully", count=len(cls._plugin_tools))
+
+    def __init__(self, skip_plugins: bool = False) -> None:
         self._tools: dict[str, BaseTool] = {}
         self._register_default_tools()
+        self._default_tool_names = set(self._tools.keys())
+
+        if not skip_plugins and self._plugins_loaded:
+            self._tools.update(self._plugin_tools)
+            logger.info("Plugin tools loaded from preload cache", count=len(self._plugin_tools))
 
     def _register_default_tools(self) -> None:
         """Register built-in tools."""

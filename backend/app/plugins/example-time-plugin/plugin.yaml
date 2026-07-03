@@ -1,0 +1,15 @@
+name: example-time-plugin
+version: 1.0.0
+description: A simple plugin that adds a get_current_time tool.
+author: Jarvis Team
+tools:
+  - name: get_current_time
+    description: Get current time in a timezone.
+    parameters:
+      type: object
+      properties:
+        timezone:
+          type: string
+          description: Timezone string (e.g., UTC, EST, Asia/Tokyo).
+          default: UTC
+      required: []

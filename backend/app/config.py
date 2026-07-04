@@ -41,6 +41,23 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 15
     jwt_refresh_token_expire_days: int = 7
 
+    # Security — Auth Hardening
+    brute_force_max_attempts: int = 5
+    brute_force_lockout_minutes: int = 15
+    password_min_length: int = 8
+    password_require_uppercase: bool = True
+    password_require_lowercase: bool = True
+    password_require_digit: bool = True
+
+    # Security — WebSocket
+    ws_max_message_size: int = 65_536  # 64 KB
+    ws_max_messages_per_minute: int = 50
+    ws_max_connections_per_user: int = 5
+
+    # Security — Request Validation
+    max_request_body_size: int = 10 * 1024 * 1024  # 10 MB
+    max_prompt_length: int = 32_000
+
     # LLM
     openai_api_key: str | None = None
     openai_model: str = "gpt-4o"

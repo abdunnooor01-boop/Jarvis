@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import signal
 from typing import Any
 
@@ -29,8 +30,31 @@ BLOCKED_COMMANDS = [
     ":(){ :|:& };:",  # fork bomb
 ]
 
+# Enhanced safety: patterns that indicate dangerous operations
+DANGEROUS_PATTERNS: list[re.Pattern] = [
+    re.compile(r"\brm\s+-rf\s+[/~]"),           # Recursive delete from root/home
+    re.compile(r"\bchmod\s+777\s+"),              # World-writable permissions
+    re.compile(r"\bchown\s+\w+\s+/"),            # Change owner of root
+    re.compile(r"\b(wget|curl)\s+.*\||\|\s*(bash|sh|python)"),  # Download and pipe to shell
+    re.compile(r"\beval\s+\$?\("),                # eval with subprocess
+    re.compile(r"\bexec\s+\w+"),                  # exec replacement
+    re.compile(r">\s*/dev/(sda|sdb|sdc|nvme|mmc)"),  # Write to block devices
+    re.compile(r"\bmkfs\.\w+"),                   # Filesystem creation
+    re.compile(r"\bmount\s+/"),                   # Mount operations on root
+    re.compile(r"\bdd\s+if=/dev/"),               # dd from devices
+    re.compile(r"\bpasswd\s+\w+"),                # Password changes
+    re.compile(r"\bkillall?\s+-9\b"),             # Force kill
+]
+
+# Commands known to require explicit confirmation
+HIGH_RISK_COMMANDS = [
+    "format", "fdisk", "mkfs", "dd", "shutdown",
+    "reboot", "init", "telinit",
+]
+
 MAX_OUTPUT_SIZE = 1_048_576  # 1MB
 DEFAULT_TIMEOUT = 30
+MAX_COMMAND_LENGTH = 10_000  # Max command length to prevent abuse
 
 
 class TerminalTool(BaseTool):
@@ -64,6 +88,7 @@ class TerminalTool(BaseTool):
                 "command": {
                     "type": "string",
                     "description": "The shell command to execute",
+                    "maxLength": MAX_COMMAND_LENGTH,
                 },
                 "timeout": {
                     "type": "integer",
@@ -109,9 +134,19 @@ class TerminalTool(BaseTool):
         """Check if a command is dangerous. Returns reason string or None."""
         cmd_lower = command.lower().strip()
 
+        # Check blocked commands (exact substring)
         for blocked in BLOCKED_COMMANDS:
             if blocked in cmd_lower:
                 return f"Command blocked: contains '{blocked}'"
+
+        # Check dangerous patterns
+        for pattern in DANGEROUS_PATTERNS:
+            if pattern.search(cmd_lower):
+                return f"Command blocked: pattern '{pattern.pattern}' detected"
+
+        # Check command length
+        if len(command) > MAX_COMMAND_LENGTH:
+            return f"Command too long ({len(command)} chars, max {MAX_COMMAND_LENGTH})"
 
         return None
 
@@ -122,6 +157,7 @@ class TerminalTool(BaseTool):
 
         danger = self._is_dangerous(command)
         if danger:
+            logger.warning("Blocked dangerous command", command=command[:100], reason=danger)
             return {"error": danger}
 
         try:
@@ -170,6 +206,7 @@ class TerminalTool(BaseTool):
 
         danger = self._is_dangerous(command)
         if danger:
+            logger.warning("Blocked dangerous background command", command=command[:100], reason=danger)
             return {"error": danger}
 
         try:

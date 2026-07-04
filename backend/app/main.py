@@ -15,6 +15,7 @@ from app.api import plugins as plugin_routes
 from app.api.ws import router as ws_routes
 from app.config import settings
 from app.core.logging import get_logger, setup_logging
+from app.core.security import add_security_headers, validate_and_warn
 from app.database import Base, engine
 
 
@@ -24,6 +25,9 @@ async def lifespan(app: FastAPI) -> None:  # noqa: ARG001
     setup_logging()
     logger = get_logger(__name__)
 
+    # Validate environment on startup
+    validate_and_warn()
+
     # Create database tables on startup (dev mode — switch to Alembic for prod)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -31,6 +35,7 @@ async def lifespan(app: FastAPI) -> None:  # noqa: ARG001
     # Preload plugins
     try:
         from app.services.tool_executor import ToolExecutor
+
         await ToolExecutor.preload_plugins()
     except Exception as preload_err:
         logger.error("Failed to preload plugins during startup", error=str(preload_err))
@@ -52,7 +57,7 @@ app = FastAPI(
     redoc_url="/redoc" if settings.debug else None,
 )
 
-# CORS middleware
+# CORS middleware (must be first to handle preflight)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -60,6 +65,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Security headers middleware
+app.middleware("http")(add_security_headers)
 
 # Register routers
 app.include_router(auth_routes.router)

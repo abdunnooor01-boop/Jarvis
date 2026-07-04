@@ -25,6 +25,9 @@ structlog==24.4.0
 # Redis
 redis[hiredis]==5.2.1
 
+# Security
+safety>=3.2.0
+
 # WebSocket
 websockets==14.1
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -114,11 +115,8 @@ class FileOpsTool(BaseTool):
             p = SANDBOX_BASE / p
 
         # Resolve symlinks and relative path components
-        try:
+        with suppress(OSError, RuntimeError):
             p = p.resolve()
-        except (OSError, RuntimeError):
-            # If resolution fails, still try to check the original path
-            pass
 
         # Check if path is within allowed directory
         for allowed in ALLOWED_PATHS:

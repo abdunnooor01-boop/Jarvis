@@ -7,8 +7,8 @@ from fastapi.responses import StreamingResponse
 
 from app.core.dependencies import get_current_user
 from app.models.user import User
-from app.services.voice import get_voice_service
 from app.schemas.voice import SynthesizeRequest, TranscriptionResponse
+from app.services.voice import get_voice_service
 
 router = APIRouter(prefix="/api/v1/voice", tags=["voice"])
 
@@ -90,7 +90,7 @@ async def synthesize_speech(
         audio_stream(),
         media_type="audio/mpeg",
         headers={
-            "Content-Disposition": f'attachment; filename="speech.mp3"',
+            "Content-Disposition": 'attachment; filename="speech.mp3"',
             "X-Accel-Buffering": "no",
         },
     )

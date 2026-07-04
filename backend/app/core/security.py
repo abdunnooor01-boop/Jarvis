@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import re
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -178,15 +177,15 @@ def validate_tool_input(params: dict[str, Any], schema: dict[str, Any]) -> bool:
         # Check type
         if param_type == "string" and not isinstance(value, str):
             return False
-        elif param_type == "integer" and not isinstance(value, int):
+        if param_type == "integer" and not isinstance(value, int):
             return False
-        elif param_type == "number" and not isinstance(value, (int, float)):
+        if param_type == "number" and not isinstance(value, (int, float)):
             return False
-        elif param_type == "boolean" and not isinstance(value, bool):
+        if param_type == "boolean" and not isinstance(value, bool):
             return False
-        elif param_type == "array" and not isinstance(value, list):
+        if param_type == "array" and not isinstance(value, list):
             return False
-        elif param_type == "object" and not isinstance(value, dict):
+        if param_type == "object" and not isinstance(value, dict):
             return False
 
         # Check enum values

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import io
-import struct
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -39,7 +38,6 @@ class VoiceService:
             # Ensure audio is in WAV format for Whisper API
             wav_bytes = self._ensure_wav(audio_bytes)
 
-            import openai
 
             client = self._get_openai_client()
             transcript = await client.audio.transcriptions.create(

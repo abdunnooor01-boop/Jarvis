@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import io
 from typing import Any
 
 from app.core.logging import get_logger

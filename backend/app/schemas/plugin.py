@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
-from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 from app.plugin_system.plugin_manifest import ToolManifest
@@ -16,8 +17,8 @@ class PluginResponse(BaseModel):
     id: UUID
     name: str
     version: str
-    description: Optional[str] = None
-    author: Optional[str] = None
+    description: str | None = None
+    author: str | None = None
     enabled: bool
     installed_at: datetime
 
@@ -25,8 +26,8 @@ class PluginResponse(BaseModel):
 class PluginDetail(PluginResponse):
     """Detailed plugin response including tools and settings."""
 
-    tools: List[ToolManifest] = Field(default_factory=list)
-    settings: Dict[str, Any] = Field(default_factory=dict)
+    tools: list[ToolManifest] = Field(default_factory=list)
+    settings: dict[str, Any] = Field(default_factory=dict)
 
 
 class PluginToggle(BaseModel):

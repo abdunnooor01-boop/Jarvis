@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-import time
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -11,6 +10,7 @@ from jose import JWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import log_login_attempt, log_token_blacklist
 from app.core.auth import (
     create_access_token,
     create_refresh_token,
@@ -18,7 +18,6 @@ from app.core.auth import (
     hash_password,
     verify_password,
 )
-from app.core.audit import log_login_attempt, log_token_blacklist
 from app.core.dependencies import (
     blacklist_token,
     check_brute_force,
@@ -215,7 +214,7 @@ async def refresh(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired refresh token",
-        )
+        ) from None
 
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()

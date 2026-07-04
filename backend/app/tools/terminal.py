@@ -171,7 +171,7 @@ class TerminalTool(BaseTool):
                 stdout, stderr = await asyncio.wait_for(
                     process.communicate(), timeout=timeout
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 process.kill()
                 await process.wait()
                 return {
@@ -206,7 +206,11 @@ class TerminalTool(BaseTool):
 
         danger = self._is_dangerous(command)
         if danger:
-            logger.warning("Blocked dangerous background command", command=command[:100], reason=danger)
+            logger.warning(
+                "Blocked dangerous background command",
+                command=command[:100],
+                reason=danger,
+            )
             return {"error": danger}
 
         try:

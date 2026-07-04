@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import time
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy import select
@@ -81,10 +82,12 @@ def _get_token_jti(payload: dict) -> str:
 # Brute Force Protection
 # =============================================================================
 
-import time
 
-
-async def check_brute_force(key: str, max_attempts: int = 5, lockout_minutes: int = 15) -> bool:
+async def check_brute_force(
+    key: str,
+    _max_attempts: int = 5,
+    _lockout_minutes: int = 15,
+) -> bool:
     """Check if a key (IP or email) is locked out due to too many failed attempts.
 
     Returns True if allowed, False if locked out.
@@ -97,12 +100,10 @@ async def check_brute_force(key: str, max_attempts: int = 5, lockout_minutes: in
 
         r = aioredis.from_url(settings.redis_url, socket_connect_timeout=2)
         lockout_key = f"bruteforce:lockout:{key}"
-        attempts_key = f"bruteforce:attempts:{key}"
 
         # Check lockout
         locked = await r.exists(lockout_key)
         if locked:
-            ttl = await r.ttl(lockout_key)
             await r.aclose()
             return False
 
@@ -114,7 +115,7 @@ async def check_brute_force(key: str, max_attempts: int = 5, lockout_minutes: in
     # In-memory fallback
     entry = _brute_force_tracker.get(key)
     if entry:
-        attempts, lockout_until = entry
+        _attempts, lockout_until = entry
         if lockout_until > time.time():
             return False
 
@@ -130,15 +131,15 @@ async def record_failed_attempt(key: str, max_attempts: int = 5, lockout_minutes
         from app.config import settings
 
         r = aioredis.from_url(settings.redis_url, socket_connect_timeout=2)
-        attempts_key = f"bruteforce:attempts:{key}"
+        redis_attempts_key = f"bruteforce:attempts:{key}"
         lockout_key = f"bruteforce:lockout:{key}"
 
-        attempts = await r.incr(attempts_key)
-        await r.expire(attempts_key, lockout_minutes * 60)
+        attempts = await r.incr(redis_attempts_key)
+        await r.expire(redis_attempts_key, lockout_minutes * 60)
 
         if attempts >= max_attempts:
             await r.setex(lockout_key, lockout_minutes * 60, "1")
-            await r.delete(attempts_key)
+            await r.delete(redis_attempts_key)
 
         await r.aclose()
         return
@@ -183,7 +184,7 @@ async def reset_brute_force(key: str) -> None:
 # =============================================================================
 
 
-async def get_current_user(
+async def get_current_user(  # noqa: B008
     credentials: HTTPAuthorizationCredentials | None = Depends(security_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User:
@@ -228,7 +229,7 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from None
 
     result = await db.execute(select(User).where(User.id == UUID(user_id)))
     user = result.scalar_one_or_none()
@@ -242,7 +243,7 @@ async def get_current_user(
     return user
 
 
-async def get_optional_user(
+async def get_optional_user(  # noqa: B008
     credentials: HTTPAuthorizationCredentials | None = Depends(security_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User | None:

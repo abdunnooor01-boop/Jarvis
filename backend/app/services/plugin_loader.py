@@ -9,7 +9,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import yaml
 from sqlalchemy import select
@@ -97,7 +97,7 @@ class PluginToolWrapper(BaseTool):
                     self.original_tool.execute(**kwargs), timeout=self.timeout
                 )
                 return result
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return (
                 f"Error: Tool execution in plugin '{self.plugin_name}' "
                 f"timed out after {self.timeout}s."
@@ -113,10 +113,10 @@ class PluginLoader:
 
     def __init__(self, plugins_dir: str | Path | None = None) -> None:
         self.plugins_dir = Path(plugins_dir or settings.plugins_dir)
-        self.manifests: Dict[str, PluginManifest] = {}
-        self.tools: Dict[str, List[BaseTool]] = {}
+        self.manifests: dict[str, PluginManifest] = {}
+        self.tools: dict[str, list[BaseTool]] = {}
 
-    def load_manifest(self, plugin_dir: Path) -> Optional[PluginManifest]:
+    def load_manifest(self, plugin_dir: Path) -> PluginManifest | None:
         """Loads and validates a plugin manifest (YAML or JSON)."""
         yaml_path = plugin_dir / "plugin.yaml"
         json_path = plugin_dir / "plugin.json"
@@ -124,10 +124,10 @@ class PluginLoader:
         manifest_data = None
         try:
             if yaml_path.is_file():
-                with open(yaml_path, "r", encoding="utf-8") as f:
+                with open(yaml_path, encoding="utf-8") as f:
                     manifest_data = yaml.safe_load(f)
             elif json_path.is_file():
-                with open(json_path, "r", encoding="utf-8") as f:
+                with open(json_path, encoding="utf-8") as f:
                     manifest_data = json.load(f)
             else:
                 return None
@@ -142,7 +142,7 @@ class PluginLoader:
             )
         return None
 
-    def discover_plugins(self) -> List[Path]:
+    def discover_plugins(self) -> list[Path]:
         """Scans the plugins directory for subdirectories containing a manifest."""
         plugin_dirs = []
         if not self.plugins_dir.exists():
@@ -154,9 +154,9 @@ class PluginLoader:
                     plugin_dirs.append(item)
         return plugin_dirs
 
-    def load_plugin_modules(self, plugin_dir: Path, manifest: PluginManifest) -> List[BaseTool]:
+    def load_plugin_modules(self, plugin_dir: Path, manifest: PluginManifest) -> list[BaseTool]:
         """Dynamically imports Python modules from a plugin and finds BaseTool implementations."""
-        loaded_tools: List[BaseTool] = []
+        loaded_tools: list[BaseTool] = []
         plugin_name = manifest.name
 
         # Find all Python files in the plugin directory
@@ -206,9 +206,9 @@ class PluginLoader:
 
         return loaded_tools
 
-    async def sync_plugins_with_db(self, discovered_manifests: List[PluginManifest]) -> List[str]:
+    async def sync_plugins_with_db(self, discovered_manifests: list[PluginManifest]) -> list[str]:
         """Sync discovered plugins with the DB, enabling/disabling or registering them."""
-        enabled_plugin_names: List[str] = []
+        enabled_plugin_names: list[str] = []
 
         async with async_session_factory() as session:
             try:
@@ -245,7 +245,7 @@ class PluginLoader:
     async def load_plugins(self, tool_executor: Any) -> None:
         """Discovers, registers with DB, and loads enabled plugins into the ToolExecutor."""
         plugin_dirs = self.discover_plugins()
-        discovered_manifests: List[PluginManifest] = []
+        discovered_manifests: list[PluginManifest] = []
         dir_to_manifest = {}
 
         for p_dir in plugin_dirs:

@@ -7,7 +7,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from fastapi import HTTPException, Request, Response, status
+from fastapi import HTTPException, Request, status
 from fastapi.responses import JSONResponse
 
 from app.config import settings
@@ -195,7 +195,7 @@ class RateLimitMiddleware:
 
 
 # Dependency-callable factory for per-endpoint rate limiting
-def rate_limiter(limit_type: str = "api") -> Callable[[Request], None]:
+def rate_limiter(limit_type: str = "api") -> Callable[[Request], None]:  # noqa: ARG001
     """Factory for per-endpoint rate limiting dependency.
 
     Usage:
@@ -211,7 +211,7 @@ def rate_limiter(limit_type: str = "api") -> Callable[[Request], None]:
         client_ip = request.client.host if request.client else "unknown"
         # Try to get user ID from request state (set by auth middleware)
         user_id = getattr(request.state, "user_id", None) or client_ip
-        key = f"{user_id}:{client_ip}"
+        _key = f"{user_id}:{client_ip}"
 
         # We need to call the async check — but FastAPI dependencies can be sync
         # We'll use a simple approach: run the async check in an event loop

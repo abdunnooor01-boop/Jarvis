@@ -5,7 +5,7 @@ Writes to both the audit_log database table and structured stdout logs.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from app.core.logging import get_logger
@@ -46,7 +46,7 @@ async def log_audit_event(
         status: 'success' or 'failure'.
         details: Additional structured details.
     """
-    timestamp = datetime.now(timezone.utc).isoformat()
+    timestamp = datetime.now(UTC).isoformat()
 
     # Always log to stdout
     log_data: dict[str, Any] = {

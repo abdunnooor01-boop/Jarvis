@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import time
 from uuid import UUID
@@ -14,7 +15,6 @@ from app.config import settings
 from app.core.auth import decode_token
 from app.core.dependencies import is_token_blacklisted
 from app.core.logging import get_logger
-from app.core.rate_limiter import check_rate_limit
 from app.core.security import sanitize_prompt
 from app.database import async_session_factory
 from app.models.conversation import Conversation
@@ -155,7 +155,10 @@ async def chat_websocket(websocket: WebSocket) -> None:
                 if len(data) > settings.ws_max_message_size:
                     await websocket.send_json({
                         "type": "error",
-                        "detail": f"Message exceeds maximum size of {settings.ws_max_message_size} bytes",
+                        "detail": (
+                            f"Message exceeds maximum size of "
+                            f"{settings.ws_max_message_size} bytes"
+                        ),
                     })
                     continue
 
@@ -306,15 +309,11 @@ async def chat_websocket(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         pass
     except json.JSONDecodeError:
-        try:
+        with contextlib.suppress(Exception):
             await websocket.send_json({"type": "error", "detail": "Invalid JSON message"})
-        except Exception:
-            pass
     except Exception:
-        try:
+        with contextlib.suppress(Exception):
             await websocket.send_json({"type": "error", "detail": "Internal server error"})
-        except Exception:
-            pass
     finally:
         if user is not None:
             manager.disconnect(str(user.id))

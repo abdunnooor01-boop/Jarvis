@@ -7,15 +7,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.tools.clipboard import ClipboardTool
-from app.tools.terminal import TerminalTool
-from app.tools.screenshot import ScreenshotTool
-from app.tools.screen_read import ScreenReadTool
-from app.tools.mouse import MouseTool
-from app.tools.keyboard import KeyboardTool
 from app.tools.app_launch import AppLaunchTool
 from app.tools.browser import BrowserTool
-
+from app.tools.clipboard import ClipboardTool
+from app.tools.keyboard import KeyboardTool
+from app.tools.mouse import MouseTool
+from app.tools.screen_read import ScreenReadTool
+from app.tools.screenshot import ScreenshotTool
+from app.tools.terminal import TerminalTool
 
 # ------------------------------------------------------------------ #
 #  ClipboardTool

@@ -15,6 +15,7 @@ from app.models.conversation import Conversation
 from app.models.message import Message
 from app.models.user import User
 from app.services.llm import get_llm_service
+from app.services.memory import MemoryService
 from app.services.tool_executor import ToolExecutor
 
 router = APIRouter()
@@ -142,6 +143,28 @@ async def chat_websocket(websocket: WebSocket) -> None:
 
                     # Build context for LLM
                     messages_for_llm = [{"role": m.role, "content": m.content} for m in history]
+
+                    # Inject relevant memories as context
+                    memory_service = MemoryService(db_session)
+                    memory_context = await memory_service.get_relevant_context(
+                        user_id=user.id,
+                        query=content,
+                    )
+                    if memory_context:
+                        messages_for_llm.insert(
+                            0,
+                            {
+                                "role": "system",
+                                "content": memory_context,
+                            },
+                        )
+                        # Notify frontend that memories were recalled
+                        await websocket.send_json(
+                            {
+                                "type": "memory_recall",
+                                "detail": "Relevant context from past conversations injected",
+                            }
+                        )
 
                     # Stream response from LLM
                     full_response = ""

@@ -380,7 +380,24 @@ class VisionService:
             "full_text": data.get("full_text", ""),
             "model": result.get("model", "gpt-4o"),
             "processing_time_ms": round(elapsed, 2),
-        }
+            }
+    
+    async def find_element_on_screen(
+        self,
+        screenshot_data: str,
+        target_description: str,
+    ) -> dict[str, Any]:
+        """Find a UI element on screen by description.
+        Wrapper for smart tools. Delegates to find_element().
+        Args:
+            screenshot_data: Base64-encoded screenshot
+            target_description: Description of element
+        Returns:
+            Dict with coordinates and confidence
+        """
+        import base64 as b64_mod
+        image_bytes = b64_mod.b64decode(screenshot_data)
+        return await self.find_element(image_bytes, target_description)
 
 
 # Singleton

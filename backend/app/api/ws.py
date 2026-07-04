@@ -1,15 +1,21 @@
-"""WebSocket handler for real-time chat."""
+"""WebSocket handler for real-time chat with security controls."""
 
 from __future__ import annotations
 
 import json
+import time
 from uuid import UUID
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from jose import JWTError
 from sqlalchemy import select
 
+from app.config import settings
 from app.core.auth import decode_token
+from app.core.dependencies import is_token_blacklisted
+from app.core.logging import get_logger
+from app.core.rate_limiter import check_rate_limit
+from app.core.security import sanitize_prompt
 from app.database import async_session_factory
 from app.models.conversation import Conversation
 from app.models.message import Message
@@ -18,21 +24,40 @@ from app.services.llm import get_llm_service
 from app.services.memory import MemoryService
 from app.services.tool_executor import ToolExecutor
 
+logger = get_logger(__name__)
+
 router = APIRouter()
 
 
 class ConnectionManager:
-    """Manages active WebSocket connections."""
+    """Manages active WebSocket connections with per-user connection limits."""
 
     def __init__(self) -> None:
         self.active_connections: dict[str, WebSocket] = {}
+        # Track connection timestamps for per-user rate limiting
+        self._connection_counts: dict[str, int] = {}
 
-    async def connect(self, user_id: str, websocket: WebSocket) -> None:
+    async def connect(self, user_id: str, websocket: WebSocket) -> bool:
+        """Connect a user. Returns False if connection limit exceeded."""
+        # Check per-user connection limit
+        current_count = self._connection_counts.get(user_id, 0)
+        if current_count >= settings.ws_max_connections_per_user:
+            await websocket.close(
+                code=status.WS_1008_POLICY_VIOLATION,
+                reason="Maximum concurrent connections exceeded",
+            )
+            return False
+
         await websocket.accept()
         self.active_connections[user_id] = websocket
+        self._connection_counts[user_id] = current_count + 1
+        return True
 
     def disconnect(self, user_id: str) -> None:
         self.active_connections.pop(user_id, None)
+        current = self._connection_counts.get(user_id, 0)
+        if current > 0:
+            self._connection_counts[user_id] = current - 1
 
     async def send_json(self, user_id: str, data: dict) -> None:
         websocket = self.active_connections.get(user_id)
@@ -41,6 +66,25 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
+
+# Track messages per second per user for rate limiting
+_ws_message_timestamps: dict[str, list[float]] = {}
+
+
+def _check_ws_rate_limit(user_id: str) -> bool:
+    """Check WebSocket message rate limit (N messages per minute)."""
+    now = time.time()
+    window_start = now - 60
+
+    timestamps = _ws_message_timestamps.get(user_id, [])
+    timestamps = [t for t in timestamps if t > window_start]
+
+    if len(timestamps) >= settings.ws_max_messages_per_minute:
+        return False
+
+    timestamps.append(now)
+    _ws_message_timestamps[user_id] = timestamps
+    return True
 
 
 @router.websocket("/ws/v1/chat")
@@ -52,6 +96,15 @@ async def chat_websocket(websocket: WebSocket) -> None:
     try:
         # First message must contain auth token
         data = await websocket.receive_text()
+
+        # Enforce message size limit
+        if len(data) > settings.ws_max_message_size:
+            await websocket.close(
+                code=status.WS_1009_MESSAGE_TOO_BIG,
+                reason="Message exceeds maximum size",
+            )
+            return
+
         msg = json.loads(data)
         token = msg.get("token")
 
@@ -66,6 +119,15 @@ async def chat_websocket(websocket: WebSocket) -> None:
                     code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token type"
                 )
                 return
+
+            # Check token blacklist
+            jti = payload.get("jti", f"{payload.get('sub', '')}:{payload.get('iat', 0)}")
+            if await is_token_blacklisted(jti):
+                await websocket.close(
+                    code=status.WS_1008_POLICY_VIOLATION, reason="Token has been revoked"
+                )
+                return
+
             result = await db_session.execute(select(User).where(User.id == UUID(payload["sub"])))
             user = result.scalar_one_or_none()
             if user is None or user.deleted_at is not None:
@@ -75,7 +137,10 @@ async def chat_websocket(websocket: WebSocket) -> None:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token")
             return
 
-        await manager.connect(str(user.id), websocket)
+        # Connect with connection limit check
+        connected = await manager.connect(str(user.id), websocket)
+        if not connected:
+            return
 
         # Send confirmation
         await websocket.send_json({"type": "connected", "user_id": str(user.id)})
@@ -86,13 +151,41 @@ async def chat_websocket(websocket: WebSocket) -> None:
         async with websocket:
             while True:
                 data = await websocket.receive_text()
+
+                # Enforce message size limit
+                if len(data) > settings.ws_max_message_size:
+                    await websocket.send_json({
+                        "type": "error",
+                        "detail": f"Message exceeds maximum size of {settings.ws_max_message_size} bytes",
+                    })
+                    continue
+
                 msg = json.loads(data)
+
+                # Rate limit messages per user
+                if not _check_ws_rate_limit(str(user.id)):
+                    await websocket.send_json({
+                        "type": "error",
+                        "detail": "Rate limit exceeded. Please slow down.",
+                    })
+                    continue
 
                 msg_type = msg.get("type", "message")
 
                 if msg_type == "message":
                     content = msg.get("content", "")
                     conversation_id = msg.get("conversation_id")
+
+                    # Sanitize user input
+                    content = sanitize_prompt(content)
+
+                    # Skip empty messages
+                    if not content.strip():
+                        await websocket.send_json({
+                            "type": "error",
+                            "detail": "Message cannot be empty",
+                        })
+                        continue
 
                     # Create or get conversation
                     if conversation_id:
@@ -235,8 +328,16 @@ async def chat_websocket(websocket: WebSocket) -> None:
 
     except WebSocketDisconnect:
         pass
+    except json.JSONDecodeError:
+        try:
+            await websocket.send_json({"type": "error", "detail": "Invalid JSON message"})
+        except Exception:
+            pass
     except Exception:
-        await websocket.send_json({"type": "error", "detail": "Internal server error"})
+        try:
+            await websocket.send_json({"type": "error", "detail": "Internal server error"})
+        except Exception:
+            pass
     finally:
         if user is not None:
             manager.disconnect(str(user.id))

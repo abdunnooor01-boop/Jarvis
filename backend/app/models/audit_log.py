@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import DateTime, Integer, String, Text, Uuid, func
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -52,7 +52,7 @@ class AuditLog(Base):
         index=True,
     )
     details: Mapped[dict | None] = mapped_column(
-        JSONB,
+        JSON,
         nullable=True,
         default=dict,
     )

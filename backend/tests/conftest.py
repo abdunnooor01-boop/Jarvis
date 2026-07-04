@@ -71,6 +71,6 @@ def sample_user_data() -> dict[str, Any]:
 
     return {
         "email": f"test-{uuid.uuid4().hex[:8]}@example.com",
-        "password": "testpassword123",
+        "password": "TestPassword123",
         "display_name": "Test User",
     }

@@ -16,6 +16,7 @@ from app.tools.mouse import MouseTool
 from app.tools.keyboard import KeyboardTool
 from app.tools.app_launch import AppLaunchTool
 from app.tools.browser import BrowserTool
+from app.tools.vision_tool import VisionTool
 
 logger = get_logger(__name__)
 
@@ -68,6 +69,7 @@ class ToolExecutor:
         self.register(KeyboardTool())
         self.register(AppLaunchTool())
         self.register(BrowserTool())
+        self.register(VisionTool())
         logger.info("Default tools registered", count=len(self._tools))
 
     def register(self, tool: BaseTool) -> None:

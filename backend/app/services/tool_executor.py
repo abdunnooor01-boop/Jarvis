@@ -16,6 +16,9 @@ from app.tools.mouse import MouseTool
 from app.tools.keyboard import KeyboardTool
 from app.tools.app_launch import AppLaunchTool
 from app.tools.browser import BrowserTool
+from app.tools.smart_click import SmartClickTool
+from app.tools.smart_type import SmartTypeTool
+from app.tools.whats_on_screen import WhatsOnScreenTool
 
 logger = get_logger(__name__)
 
@@ -68,6 +71,9 @@ class ToolExecutor:
         self.register(KeyboardTool())
         self.register(AppLaunchTool())
         self.register(BrowserTool())
+        self.register(SmartClickTool())
+        self.register(SmartTypeTool())
+        self.register(WhatsOnScreenTool())
         logger.info("Default tools registered", count=len(self._tools))
 
     def register(self, tool: BaseTool) -> None:

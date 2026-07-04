@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 from app.api import auth as auth_routes
 from app.api import chat as chat_routes
+from app.api import memory as memory_routes
 from app.api import voice as voice_routes
 from app.api.ws import router as ws_routes
 from app.config import settings
@@ -25,6 +26,13 @@ async def lifespan(app: FastAPI) -> None:  # noqa: ARG001
 
     # Create database tables on startup (dev mode — switch to Alembic for prod)
     async with engine.begin() as conn:
+        # Enable pgvector extension if available
+        try:
+            await conn.execute(
+                __import__("sqlalchemy").text("CREATE EXTENSION IF NOT EXISTS vector")
+            )
+        except Exception:
+            logger.info("pgvector extension not available (expected with SQLite)")
         await conn.run_sync(Base.metadata.create_all)
 
     logger.info(
@@ -56,6 +64,7 @@ app.add_middleware(
 # Register routers
 app.include_router(auth_routes.router)
 app.include_router(chat_routes.router)
+app.include_router(memory_routes.router)
 app.include_router(voice_routes.router)
 app.include_router(ws_routes)
 

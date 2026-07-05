@@ -1,15 +1,18 @@
 import React, { useState } from 'react'
-import { X, Moon, Sun, Monitor, Brain, Trash2 } from 'lucide-react'
+import { X, Moon, Sun, Monitor, Brain, Trash2, Puzzle } from 'lucide-react'
 import { useSettingsStore } from '../stores/settings'
 import { useMemoryStore } from '../stores/memory'
+import { usePluginStore } from '../stores/plugins'
 
 interface SettingsModalProps {
   onClose: () => void
+  onOpenPlugins: () => void
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onOpenPlugins }) => {
   const { theme, setTheme, openAiKey, setOpenAiKey } = useSettingsStore()
   const { isEnabled, toggleMemory, clearAllMemories, memories } = useMemoryStore()
+  const { plugins } = usePluginStore()
   const [isConfirmingClear, setIsConfirmingClear] = useState(false)
 
   return (
@@ -124,6 +127,27 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   </button>
                 )}
               </div>
+            </div>
+          </section>
+
+          <section className="border-t border-slate-200 dark:border-slate-800 pt-6">
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase mb-4">
+              <Puzzle size={16} className="text-indigo-500" />
+              Plugins
+            </label>
+            <div className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800/80">
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                Installed plugins: <span className="font-semibold text-slate-900 dark:text-white">{plugins.length}</span>
+              </div>
+              <button
+                onClick={() => {
+                  onClose()
+                  onOpenPlugins()
+                }}
+                className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 px-3 py-1.5 rounded-lg font-semibold transition-colors"
+              >
+                Manage Plugins
+              </button>
             </div>
           </section>
 

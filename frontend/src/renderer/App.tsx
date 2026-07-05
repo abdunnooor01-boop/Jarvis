@@ -7,12 +7,14 @@ import Login from './components/Login'
 import Signup from './components/Signup'
 import SettingsModal from './components/SettingsModal'
 import MemoryIndicator from './components/MemoryIndicator'
+import PluginManager from './components/PluginManager'
 
 const App: React.FC = () => {
   const { isAuthenticated, setAuth } = useAuthStore()
   const { loadSettings } = useSettingsStore()
   const [view, setView] = useState<'login' | 'signup'>('login')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isPluginsOpen, setIsPluginsOpen] = useState(false)
   const [isInitializing, setIsInitializing] = useState(true)
 
   useEffect(() => {
@@ -52,7 +54,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen overflow-hidden bg-white dark:bg-slate-900">
-      <Sidebar onOpenSettings={() => setIsSettingsOpen(true)} />
+      <Sidebar onOpenSettings={() => setIsSettingsOpen(true)} onOpenPlugins={() => setIsPluginsOpen(true)} />
       <main className="flex-1 flex flex-col min-w-0 relative">
         <header className="h-14 flex items-center px-6 border-b border-slate-200 dark:border-slate-800 flex-shrink-0 draggable">
           <h1 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Jarvis</h1>
@@ -60,7 +62,8 @@ const App: React.FC = () => {
         <MemoryIndicator />
         <ChatWindow />
       </main>
-      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}
+      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} onOpenPlugins={() => setIsPluginsOpen(true)} />}
+      {isPluginsOpen && <PluginManager onClose={() => setIsPluginsOpen(false)} />}
     </div>
   )
 }

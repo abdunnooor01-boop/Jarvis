@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.ws import manager as ws_manager  # WebSocket connection manager
 from app.core.logging import get_logger
 from app.database import async_session_factory
-from app.models.task import TaskPlan, TaskStep
+from app.models.task_plan import TaskPlan
+from app.models.task_step import TaskStep
 from app.services.tool_executor import ToolExecutor
 
 logger = get_logger(__name__)
@@ -123,7 +124,7 @@ class TaskExecutionEngine:
         logger.info(
             "Executing step",
             plan_id=str(plan.id),
-            step_order=step.step_order,
+            step_order=step.step_number,
             tool=step.tool_name,
         )
 
@@ -136,7 +137,7 @@ class TaskExecutionEngine:
             "type": "task_step_start",
             "plan_id": str(plan.id),
             "step_id": str(step.id),
-            "step_order": step.step_order,
+            "step_order": step.step_number,
             "tool_name": step.tool_name,
             "description": step.description,
         })
@@ -170,7 +171,7 @@ class TaskExecutionEngine:
                     "type": "task_step_complete",
                     "plan_id": str(plan.id),
                     "step_id": str(step.id),
-                    "step_order": step.step_order,
+                    "step_order": step.step_number,
                     "result": result,
                 })
                 return
@@ -183,7 +184,7 @@ class TaskExecutionEngine:
                     logger.warning(
                         "Step failed, retrying",
                         plan_id=str(plan.id),
-                        step=step.step_order,
+                        step=step.step_number,
                         attempt=attempt + 1,
                         error=error_msg,
                     )
@@ -191,7 +192,7 @@ class TaskExecutionEngine:
                         "type": "task_step_retry",
                         "plan_id": str(plan.id),
                         "step_id": str(step.id),
-                        "step_order": step.step_order,
+                        "step_order": step.step_number,
                         "attempt": attempt + 1,
                         "error": error_msg,
                     })
@@ -210,7 +211,7 @@ class TaskExecutionEngine:
                         "type": "task_step_skipped",
                         "plan_id": str(plan.id),
                         "step_id": str(step.id),
-                        "step_order": step.step_order,
+                        "step_order": step.step_number,
                         "error": error_msg,
                     })
                     return
@@ -228,7 +229,7 @@ class TaskExecutionEngine:
                     "type": "task_step_failed",
                     "plan_id": str(plan.id),
                     "step_id": str(step.id),
-                    "step_order": step.step_order,
+                    "step_order": step.step_number,
                     "error": error_msg,
                 })
                 await self._send_ws_event(user_id, {

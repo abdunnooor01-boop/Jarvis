@@ -11,34 +11,31 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import get_current_user
 from app.core.logging import get_logger
 from app.database import get_db
-from app.models.task import TaskPlan, TaskStep
+from app.models.task_plan import TaskPlan
+from app.models.task_step import TaskStep
 from app.models.user import User
-from app.schemas.task import (
+from app.schemas.task_plan import (
     ActionResponse,
-    CreatePlanRequest,
-    ExecutePlanResponse,
-    TaskListResponse,
+    PlanGenerationRequest,
     TaskPlanResponse,
     TaskStepResponse,
+    TaskPlanListResponse,
+    PlanGenerationResponse,
 )
+from app.services.task_planner import get_task_planner
 from app.services.task_executor import TaskExecutionEngine
-from app.services.task_planner import TaskPlanner
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 
 # Singleton instances
-_planner: TaskPlanner | None = None
 _executor: TaskExecutionEngine | None = None
 
 
-def _get_planner() -> TaskPlanner:
-    """Get or create the TaskPlanner singleton."""
-    global _planner
-    if _planner is None:
-        _planner = TaskPlanner()
-    return _planner
+def _get_planner():
+    """Get the task planner singleton."""
+    return get_task_planner()
 
 
 def _get_executor() -> TaskExecutionEngine:
@@ -53,19 +50,19 @@ def _plan_to_response(plan: TaskPlan) -> TaskPlanResponse:
     """Convert a TaskPlan ORM object to a response schema."""
     return TaskPlanResponse(
         id=plan.id,
+        user_id=plan.user_id,
         goal=plan.goal,
-        title=plan.title,
         status=plan.status,
         error_mode=plan.error_mode,
         max_retries=plan.max_retries,
         total_steps=plan.total_steps,
         completed_steps=plan.completed_steps,
         failed_steps=plan.failed_steps,
-        steps=[_step_to_response(s) for s in sorted(plan.steps, key=lambda s: s.step_order)],
-        created_at=plan.created_at,
-        updated_at=plan.updated_at,
-        started_at=plan.started_at,
-        completed_at=plan.completed_at,
+        steps=[_step_to_response(s) for s in plan.steps],
+        created_at=str(plan.created_at),
+        updated_at=str(plan.updated_at),
+        started_at=str(plan.started_at) if plan.started_at else None,
+        completed_at=str(plan.completed_at) if plan.completed_at else None,
     )
 
 
@@ -73,69 +70,43 @@ def _step_to_response(step: TaskStep) -> TaskStepResponse:
     """Convert a TaskStep ORM object to a response schema."""
     return TaskStepResponse(
         id=step.id,
-        step_order=step.step_order,
+        plan_id=step.plan_id,
+        step_number=step.step_number,
         tool_name=step.tool_name,
-        tool_params=step.tool_params,
+        tool_params=step.tool_params or {},
         description=step.description,
         status=step.status,
         result=step.result,
         error=step.error,
         retry_count=step.retry_count,
-        started_at=step.started_at,
-        completed_at=step.completed_at,
+        started_at=str(step.started_at) if step.started_at else None,
+        completed_at=str(step.completed_at) if step.completed_at else None,
+        created_at=str(step.created_at),
+        updated_at=str(step.updated_at),
     )
 
 
 @router.post("/plan", response_model=TaskPlanResponse, status_code=status.HTTP_201_CREATED)
 async def create_plan(
-    body: CreatePlanRequest,
+    body: PlanGenerationRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TaskPlanResponse:
     """Create a task plan by breaking down a goal into executable steps."""
     planner = _get_planner()
 
-    # Generate plan steps via LLM
-    steps_data = await planner.plan(body.goal)
-
-    if not steps_data:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Could not generate a plan for this goal. Try being more specific.",
-        )
-
-    # Create the plan in DB
-    plan = TaskPlan(
-        user_id=current_user.id,
+    # Generate plan steps via LLM — uses the planner from develop
+    plan = await planner.generate_plan(
         goal=body.goal,
-        title=body.goal[:100],
-        status="pending",  # Needs user approval before execution
-        error_mode=body.error_mode,
-        max_retries=body.max_retries,
-        total_steps=len(steps_data),
+        db=db,
+        user_id=current_user.id,
     )
-    db.add(plan)
-    await db.flush()
-
-    # Create steps
-    for i, step_data in enumerate(steps_data):
-        step = TaskStep(
-            plan_id=plan.id,
-            step_order=i,
-            tool_name=step_data.get("tool_name", ""),
-            tool_params=step_data.get("tool_params", {}),
-            description=step_data.get("description", ""),
-        )
-        db.add(step)
-
-    await db.commit()
-    await db.refresh(plan)
 
     logger.info(
         "Plan created",
         plan_id=str(plan.id),
         user_id=str(current_user.id),
-        step_count=len(steps_data),
+        step_count=len(plan.steps),
     )
 
     return _plan_to_response(plan)
@@ -328,13 +299,13 @@ async def cancel_plan(
     )
 
 
-@router.get("", response_model=TaskListResponse)
+@router.get("", response_model=TaskPlanListResponse)
 async def list_plans(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> TaskListResponse:
+) -> TaskPlanListResponse:
     """List all task plans for the current user with pagination."""
     # Get total count
     count_result = await db.execute(
@@ -353,7 +324,7 @@ async def list_plans(
     )
     plans = result.scalars().all()
 
-    return TaskListResponse(
+    return TaskPlanListResponse(
         items=[_plan_to_response(p) for p in plans],
         total=total,
         page=page,

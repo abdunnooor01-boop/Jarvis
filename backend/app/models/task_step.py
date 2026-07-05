@@ -8,7 +8,7 @@ from typing import Any
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, Uuid, func
 from sqlalchemy.dialects.postgresql import JSON
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
@@ -69,6 +69,14 @@ class TaskStep(Base):
         nullable=False,
         default=0,
     )
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -80,6 +88,9 @@ class TaskStep(Base):
         onupdate=func.now(),
         nullable=False,
     )
+
+    # Relationship
+    plan: Mapped[TaskPlan] = relationship("TaskPlan", back_populates="steps")
 
     def __repr__(self) -> str:
         return (

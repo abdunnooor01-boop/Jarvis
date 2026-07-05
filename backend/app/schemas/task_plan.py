@@ -37,6 +37,8 @@ class TaskStepResponse(BaseModel):
     result: str | None = None
     error: str | None = None
     retry_count: int = 0
+    started_at: str | None = None
+    completed_at: str | None = None
     created_at: str
     updated_at: str
 
@@ -50,7 +52,14 @@ class TaskPlanResponse(BaseModel):
     user_id: UUID
     goal: str
     status: str
+    total_steps: int = 0
+    completed_steps: int = 0
+    failed_steps: int = 0
+    max_retries: int = 2
+    error_mode: str = "abort"
     steps: list[TaskStepResponse] = []
+    started_at: str | None = None
+    completed_at: str | None = None
     created_at: str
     updated_at: str
 
@@ -78,3 +87,19 @@ class PlanGenerationResponse(BaseModel):
 
     plan: TaskPlanResponse
     message: str = "Plan generated successfully"
+
+
+class ActionResponse(BaseModel):
+    """Response for plan lifecycle actions (pause/resume/cancel)."""
+
+    plan_id: UUID
+    status: str
+    message: str
+
+
+class ExecutePlanResponse(BaseModel):
+    """Response when starting plan execution."""
+
+    plan_id: UUID
+    status: str
+    message: str

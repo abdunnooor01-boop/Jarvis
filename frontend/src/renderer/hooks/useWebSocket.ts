@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import { useAuthStore } from '../stores/auth'
 import { useChatStore, Message } from '../stores/chat'
 import { useMemoryStore } from '../stores/memory'
+import { useTaskStore } from '../stores/tasks'
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws/v1/chat'
 
@@ -45,6 +46,8 @@ export const useWebSocket = () => {
         }
       } else if (data.type === 'done') {
         setRecalling(false)
+      } else if (data.type && data.type.startsWith('task_')) {
+        useTaskStore.getState().handleWebSocketEvent(data)
       }
     }
 

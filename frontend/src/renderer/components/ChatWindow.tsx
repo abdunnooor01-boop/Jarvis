@@ -3,6 +3,7 @@ import { Send, Loader2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useChatStore, Message } from '../stores/chat'
 import { useWebSocket } from '../hooks/useWebSocket'
+import { useTaskStore } from '../stores/tasks'
 
 const ChatWindow: React.FC = () => {
   const { currentConversationId, messages, isLoading, addMessage, setLoading } = useChatStore()
@@ -20,6 +21,19 @@ const ChatWindow: React.FC = () => {
 
   const handleSend = () => {
     if (!input.trim() || !currentConversationId) return
+
+    if (input.trim().startsWith('/plan ')) {
+      const goal = input.trim().substring(6).trim()
+      if (goal) {
+        useTaskStore.getState().createPlan(goal).then((plan) => {
+          if (plan) {
+            useTaskStore.getState().executePlan(plan.id)
+          }
+        })
+      }
+      setInput('')
+      return
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),

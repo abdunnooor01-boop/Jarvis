@@ -30,6 +30,9 @@ async def setup_database() -> AsyncGenerator[None, None]:
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
+    # Reset rate limiter state between tests
+    from app.core.rate_limiter import _in_memory_buckets
+    _in_memory_buckets.clear()
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 

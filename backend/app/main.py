@@ -10,6 +10,8 @@ from fastapi.responses import JSONResponse
 
 from app.api import auth as auth_routes
 from app.api import chat as chat_routes
+from app.api import dev as dev_routes
+from app.api import dev_logs as dev_log_routes
 from app.api import memory as memory_routes
 from app.api import vision as vision_routes
 from app.api import voice as voice_routes
@@ -82,6 +84,8 @@ app.middleware("http")(add_security_headers)
 # Register routers
 app.include_router(auth_routes.router)
 app.include_router(chat_routes.router)
+app.include_router(dev_routes.router)
+app.include_router(dev_log_routes.router)
 app.include_router(memory_routes.router)
 app.include_router(vision_routes.router)
 app.include_router(voice_routes.router)

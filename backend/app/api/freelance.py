@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -321,11 +322,20 @@ async def stripe_webhook(
                 if job and job.status == "pending":
                     job.status = "paid"
                     job.stripe_session_id = session_data.get("id", "")
-                    from datetime import datetime, timezone
+                    from datetime import datetime
 
-                    job.paid_at = datetime.now(timezone.utc)
+                    job.paid_at = datetime.now(UTC)
                     await db.commit()
                     logger.info("Job marked as paid", job_id=job_id_str)
+
+                    # Trigger background execution
+                    import asyncio
+
+                    from app.services.freelance_executor import FreelanceExecutionEngine
+
+                    engine = FreelanceExecutionEngine()
+                    asyncio.create_task(engine.execute_job(job_id_str))
+                    logger.info("Freelance execution triggered", job_id=job_id_str)
             except (ValueError, Exception) as e:
                 logger.error("Failed to process webhook", error=str(e))
 

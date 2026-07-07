@@ -67,6 +67,10 @@ class Settings(BaseSettings):
     # Tools
     tavily_api_key: str | None = None
 
+    # Stripe
+    stripe_secret_key: str | None = None
+    stripe_webhook_secret: str | None = None
+
     # CORS
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 

@@ -14,10 +14,10 @@ from app.api import dev as dev_routes
 from app.api import dev_logs as dev_log_routes
 from app.api import freelance as freelance_routes
 from app.api import memory as memory_routes
-from app.api import vision as vision_routes
-from app.api import voice as voice_routes
 from app.api import plugins as plugin_routes
 from app.api import tasks as task_routes
+from app.api import vision as vision_routes
+from app.api import voice as voice_routes
 from app.api.ws import router as ws_routes
 from app.config import settings
 from app.core.logging import get_logger, setup_logging

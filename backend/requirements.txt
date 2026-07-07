@@ -52,3 +52,6 @@ python-multipart==0.0.19
 email-validator==2.3.0
 orjson==3.10.12
 PyYAML>=6.0.1
+
+# Payments
+stripe==15.3.0

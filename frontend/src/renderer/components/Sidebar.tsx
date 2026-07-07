@@ -1,5 +1,5 @@
 import React from 'react'
-import { Plus, MessageSquare, Settings, LogOut, User, Puzzle, History, Terminal } from 'lucide-react'
+import { Plus, MessageSquare, Settings, LogOut, User, Puzzle, History, Terminal, DollarSign } from 'lucide-react'
 import { useChatStore } from '../stores/chat'
 import { useAuthStore } from '../stores/auth'
 
@@ -8,9 +8,10 @@ interface SidebarProps {
   onOpenPlugins: () => void
   onOpenTasks: () => void
   onOpenDevConsole: () => void
+  onOpenFreelance: () => void
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ onOpenSettings, onOpenPlugins, onOpenTasks, onOpenDevConsole }) => {
+const Sidebar: React.FC<SidebarProps> = ({ onOpenSettings, onOpenPlugins, onOpenTasks, onOpenDevConsole, onOpenFreelance }) => {
   const { conversations, currentConversationId, setCurrentConversation } = useChatStore()
   const { user, logout } = useAuthStore()
 
@@ -68,6 +69,13 @@ const Sidebar: React.FC<SidebarProps> = ({ onOpenSettings, onOpenPlugins, onOpen
         >
           <History size={16} />
           Tasks
+        </button>
+        <button
+          onClick={onOpenFreelance}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
+        >
+          <DollarSign size={16} />
+          Freelance
         </button>
         <button
           onClick={onOpenDevConsole}

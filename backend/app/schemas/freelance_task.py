@@ -33,19 +33,24 @@ class TaskTemplateListResponse(BaseModel):
 
 
 class OrderCreateRequest(BaseModel):
-    """Request to create a new job order."""
+    """Request to create a new job order.
 
-    template_id: UUID = Field(..., description="ID of the task template")
+    Either `template_id` (for a pre-defined task) or `description`
+    (for a free-form request) must be provided. If both are given,
+    template_id takes precedence.
+    """
+
+    template_id: UUID | None = Field(None, description="ID of the task template (omit for free-form orders)")
     customer_email: EmailStr = Field(..., description="Customer email for receipt")
     customer_name: str | None = Field(None, max_length=200)
-    description: str | None = Field(None, description="Additional details or instructions")
+    description: str | None = Field(None, description="Task description or free-form request (required if no template_id)")
 
 
 class OrderCreateResponse(BaseModel):
     """Response after creating a job order."""
 
     job_id: UUID
-    template_name: str
+    template_name: str | None = None
     amount_cents: int
     amount_dollars: float
     status: str
@@ -57,7 +62,7 @@ class FreelanceJobResponse(BaseModel):
     """Response schema for a freelance job."""
 
     id: UUID
-    template_id: UUID
+    template_id: UUID | None = None
     template_name: str = ""
     customer_email: str
     customer_name: str | None = None

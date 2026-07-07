@@ -82,10 +82,10 @@ class FreelanceJob(Base):
         primary_key=True,
         default=uuid.uuid4,
     )
-    template_id: Mapped[uuid.UUID] = mapped_column(
+    template_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid,
         ForeignKey("freelance_task_templates.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
     customer_email: Mapped[str] = mapped_column(

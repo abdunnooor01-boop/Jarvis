@@ -13,6 +13,7 @@ import { TaskPlanPanel } from './components/TaskPlanPanel'
 import { TaskHistory } from './components/TaskHistory'
 import { DevConsole } from './components/DevConsole'
 import { FreelancerDashboard } from './components/FreelancerDashboard'
+import { KnowledgeFeed } from './components/KnowledgeFeed'
 
 const App: React.FC = () => {
   const { isAuthenticated, setAuth } = useAuthStore()
@@ -24,6 +25,7 @@ const App: React.FC = () => {
   const [isTasksOpen, setIsTasksOpen] = useState(false)
   const [isDevConsoleOpen, setIsDevConsoleOpen] = useState(false)
   const [isFreelanceOpen, setIsFreelanceOpen] = useState(false)
+  const [isKnowledgeOpen, setIsKnowledgeOpen] = useState(false)
   const [isInitializing, setIsInitializing] = useState(true)
 
   useEffect(() => {
@@ -69,6 +71,7 @@ const App: React.FC = () => {
         onOpenTasks={() => setIsTasksOpen(true)}
         onOpenDevConsole={() => setIsDevConsoleOpen(true)}
         onOpenFreelance={() => setIsFreelanceOpen(true)}
+        onOpenKnowledge={() => setIsKnowledgeOpen(true)}
       />
       <main className="flex-1 flex min-w-0 relative">
         <div className="flex-1 flex flex-col min-w-0 border-r border-slate-200 dark:border-slate-800">
@@ -85,6 +88,7 @@ const App: React.FC = () => {
       {isTasksOpen && <TaskHistory onClose={() => setIsTasksOpen(false)} />}
       {isDevConsoleOpen && <DevConsole onClose={() => setIsDevConsoleOpen(false)} />}
       {isFreelanceOpen && <FreelancerDashboard onClose={() => setIsFreelanceOpen(false)} />}
+      {isKnowledgeOpen && <KnowledgeFeed onClose={() => setIsKnowledgeOpen(false)} />}
     </div>
   )
 }

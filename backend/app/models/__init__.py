@@ -3,6 +3,7 @@
 from app.models.audit_log import AuditLog
 from app.models.conversation import Conversation
 from app.models.freelance_job import FreelanceJob
+from app.models.knowledge_entry import FeedSource, KnowledgeEntry
 from app.models.memory import MemoryEntry
 from app.models.message import Message
 from app.models.plugin import Plugin
@@ -20,4 +21,6 @@ __all__ = [
     "FreelanceJob",
     "TaskPlan",
     "TaskStep",
+    "FeedSource",
+    "KnowledgeEntry",
 ]

@@ -59,7 +59,21 @@ async def lifespan(app: FastAPI) -> None:  # noqa: ARG001
         environment=settings.environment,
         version=settings.app_version,
     )
+
+    # Start the knowledge feed pipeline orchestrator
+    from app.services.scheduler import scheduler as pipeline_scheduler
+
+    pipeline_scheduler.start()
+    logger.info(
+        "Pipeline orchestrator started",
+        crawl_interval_hours=settings.crawl_interval_hours,
+        digest_day=settings.digest_day_of_week,
+    )
+
     yield
+
+    # Shutdown the pipeline orchestrator
+    await pipeline_scheduler.stop()
     logger.info("Shutting down Jarvis API")
 
 

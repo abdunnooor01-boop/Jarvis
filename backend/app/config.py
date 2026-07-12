@@ -85,7 +85,10 @@ class Settings(BaseSettings):
     tools_dir: str = str(Path(__file__).parent / "tools")
     plugins_dir: str = str(Path(__file__).parent / "plugins")
 
-    # Knowledge Feed Scheduler
+    # Performance & Power
+    low_power_mode: bool = False
+    max_memory_mb: int = 0  # 0 = unlimited
+    max_concurrent_tasks: int = 5
     crawl_interval_hours: int = 24  # How often to crawl (default: daily)
     digest_day_of_week: int = 6  # 0=Mon, 6=Sun — day to generate weekly digest
 

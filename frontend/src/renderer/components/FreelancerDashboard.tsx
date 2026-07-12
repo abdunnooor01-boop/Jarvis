@@ -91,7 +91,15 @@ export const FreelancerDashboard: React.FC<FreelancerDashboardProps> = ({ onClos
     e.preventDefault()
     if (!selectedTemplateForOrder) return
 
-    const res = await createOrder(selectedTemplateForOrder.id, {
+    const isCustom = selectedTemplateForOrder.id === 'custom-task'
+    if (isCustom && !instructionsState.trim()) {
+      alert('Please provide a plain-language description of your custom task!')
+      return
+    }
+
+    const templateIdToSend = isCustom ? null : selectedTemplateForOrder.id
+
+    const res = await createOrder(templateIdToSend, {
       customer_email: customerEmailState,
       specific_instructions: instructionsState
     })
@@ -256,6 +264,60 @@ export const FreelancerDashboard: React.FC<FreelancerDashboardProps> = ({ onClos
                       </div>
                     </div>
                   ))}
+
+                  {/* Custom Task Request Card */}
+                  <div
+                    onClick={() => {
+                      setSelectedTemplateForOrder({
+                        id: 'custom-task',
+                        name: 'Custom AI Task Request',
+                        description: 'Describe any custom task you need Jarvis to perform in plain English. Our AI will evaluate your description and instantly estimate a price ($5, $10, or $25) based on complexity.',
+                        price: 0,
+                        estimated_time: '1-2 hours'
+                      })
+                      setCreatedOrderState(null)
+                    }}
+                    className="bg-gradient-to-br from-white to-green-50/20 dark:from-slate-900 dark:to-slate-950/20 border-2 border-dashed border-green-500/30 p-5 rounded-2xl flex flex-col justify-between hover:border-green-500 hover:shadow-lg transition-all cursor-pointer"
+                  >
+                    <div>
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-center gap-2">
+                          <Sparkles size={18} className="text-green-500 animate-pulse" />
+                          <h4 className="font-bold text-slate-800 dark:text-white text-base">Custom AI Task</h4>
+                        </div>
+                        <span className="text-green-600 dark:text-green-400 font-extrabold font-mono text-xs px-2.5 py-1 bg-green-500/10 rounded-full border border-green-500/20">
+                          $5 - $25
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-4">
+                        Describe any custom task you need Jarvis to perform in plain English. Our AI will evaluate your request and instantly estimate a price tier based on complexity.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-3.5 mt-2">
+                      <div className="flex items-center gap-1 text-slate-400 dark:text-slate-500 text-xs">
+                        <Clock size={13} />
+                        <span>Estimated Price Tier</span>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSelectedTemplateForOrder({
+                            id: 'custom-task',
+                            name: 'Custom AI Task Request',
+                            description: 'Describe any custom task you need Jarvis to perform in plain English. Our AI will evaluate your description and instantly estimate a price ($5, $10, or $25) based on complexity.',
+                            price: 0,
+                            estimated_time: '1-2 hours'
+                          })
+                          setCreatedOrderState(null)
+                        }}
+                        className="px-3.5 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm"
+                      >
+                        <Sparkles size={13} />
+                        <span>Describe Task</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 /* Submission Order Form */
@@ -291,22 +353,27 @@ export const FreelancerDashboard: React.FC<FreelancerDashboardProps> = ({ onClos
 
                       <div>
                         <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
-                          Specific Task Instructions & Details
+                          {selectedTemplateForOrder.id === 'custom-task' ? 'Describe What You Need Jarvis to Do (Plain English)' : 'Specific Task Instructions & Details'}
                         </label>
                         <textarea
                           required
                           rows={4}
-                          placeholder="Please specify target website URLs, copywriting directions, test parameters or required formats..."
+                          placeholder={selectedTemplateForOrder.id === 'custom-task' ? "e.g. Scrape the latest news headlines from techcrunch.com and write a 3-bullet summary for each headline, then save it to tech_news.txt" : "Please specify target website URLs, copywriting directions, test parameters or required formats..."}
                           value={instructionsState}
                           onChange={(e) => setInstructionsState(e.target.value)}
                           className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white rounded-lg px-3 py-2 text-sm border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-green-500"
                         />
+                        {selectedTemplateForOrder.id === 'custom-task' && (
+                          <p className="text-[10px] text-slate-400 mt-1">
+                            Our AI complexity analyzer will instantly estimate a fair price: Simple ($5), Medium ($10), or Complex ($25). You will confirm and view the price before checkout!
+                          </p>
+                        )}
                       </div>
 
                       <div className="p-3 bg-slate-50 dark:bg-slate-950/20 rounded-xl border border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs">
                         <span className="text-slate-500">Service Price:</span>
                         <span className="font-bold text-green-600 dark:text-green-400 text-sm">
-                          ${selectedTemplateForOrder.price}
+                          {selectedTemplateForOrder.id === 'custom-task' ? 'AI Estimated ($5 - $25)' : `${selectedTemplateForOrder.price}`}
                         </span>
                       </div>
 

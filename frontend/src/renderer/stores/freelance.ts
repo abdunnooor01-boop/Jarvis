@@ -37,8 +37,8 @@ interface FreelanceState {
 
   fetchTemplates: () => Promise<void>
   createOrder: (
-    templateId: string,
-    details: { customer_email: string; specific_instructions: string; files?: string[] }
+    templateId: string | null,
+    details: { customer_email: string; specific_instructions: string; customer_name?: string; files?: string[] }
   ) => Promise<FreelanceJob | null>
   fetchJobs: () => Promise<void>
   fetchJob: (id: string) => Promise<void>
@@ -189,10 +189,10 @@ export const useFreelanceStore = create<FreelanceState>((set, get) => ({
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
-          template_id: templateId,
+          template_id: templateId || null,
           customer_email: details.customer_email,
-          specific_instructions: details.specific_instructions,
-          files: details.files || []
+          customer_name: details.customer_name || null,
+          description: details.specific_instructions
         })
       })
 
@@ -205,15 +205,15 @@ export const useFreelanceStore = create<FreelanceState>((set, get) => ({
       // Update local state with returned order/job
       const currentJobs = get().jobs
       const newJob: FreelanceJob = {
-        id: data.id || `job-${Math.floor(Math.random() * 1000) + 200}`,
-        template_id: templateId,
-        task_type: get().templates.find((t) => t.id === templateId)?.name || 'Custom Freelance Task',
+        id: data.job_id || data.id || `job-${Math.floor(Math.random() * 1000) + 200}`,
+        template_id: templateId || '',
+        task_type: data.template_name || (templateId ? (get().templates.find((t) => t.id === templateId)?.name || 'Custom Freelance Task') : 'Custom Freelance Task'),
         customer_email: details.customer_email,
         details: details.specific_instructions,
-        amount_paid: data.amount_paid || get().templates.find((t) => t.id === templateId)?.price || 0,
+        amount_paid: data.amount_dollars || (data.amount_cents ? data.amount_cents / 100 : 0) || (templateId ? (get().templates.find((t) => t.id === templateId)?.price || 0) : 10.00),
         status: data.status || 'paid',
         created_at: data.created_at || new Date().toISOString(),
-        payment_url: data.payment_url || `https://checkout.stripe.com/pay/mock_session_${Math.floor(Math.random() * 100000)}`
+        payment_url: data.stripe_payment_link || data.payment_url || `https://checkout.stripe.com/pay/mock_session_${Math.floor(Math.random() * 100000)}`
       }
 
       const updatedJobs = [newJob, ...currentJobs]
@@ -229,14 +229,15 @@ export const useFreelanceStore = create<FreelanceState>((set, get) => ({
       console.warn('createOrder failed, creating local order with Stripe link fallback:', err.message)
       
       const currentJobs = get().jobs
-      const template = get().templates.find((t) => t.id === templateId)
+      const template = templateId ? get().templates.find((t) => t.id === templateId) : null
+      const estimatedPrice = template ? template.price : 10.00
       const newMockJob: FreelanceJob = {
         id: `job-${Math.floor(Math.random() * 1000) + 200}`,
-        template_id: templateId,
+        template_id: templateId || '',
         task_type: template?.name || 'Custom Freelance Task',
         customer_email: details.customer_email,
         details: details.specific_instructions,
-        amount_paid: template?.price || 0,
+        amount_paid: estimatedPrice,
         status: 'paid', // Start as paid in local mock mode to bypass real paywall
         created_at: new Date().toISOString(),
         payment_url: `https://checkout.stripe.com/pay/mock_session_${Math.floor(Math.random() * 100000)}`

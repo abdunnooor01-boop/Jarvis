@@ -6,7 +6,7 @@ import re
 import time
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from jose import JWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -236,7 +236,7 @@ async def refresh(
 async def logout(
     body: LogoutRequest | None = None,
     current_user: User = Depends(get_current_user),
-) -> None:
+) -> Response:
     """Logout by blacklisting the current token."""
     if body and body.access_token:
         try:
@@ -257,6 +257,8 @@ async def logout(
                 "Failed to blacklist token on logout",
                 user_id=str(current_user.id),
             )
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/me", response_model=UserResponse)

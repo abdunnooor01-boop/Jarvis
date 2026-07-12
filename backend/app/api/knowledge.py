@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from app.api.auth import get_current_user
 from app.core.logging import get_logger
@@ -128,7 +128,7 @@ async def update_source(
 async def delete_source(
     source_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
-) -> None:
+) -> Response:
     """Delete a feed source and its entries."""
     store = _get_store()
     success = await store.delete_source(str(source_id))
@@ -137,6 +137,7 @@ async def delete_source(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Source not found",
         )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ---------------------------------------------------------------------------
@@ -259,7 +260,7 @@ async def mark_all_read(
 async def delete_entry(
     entry_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
-) -> None:
+) -> Response:
     """Delete a knowledge entry."""
     store = _get_store()
     success = await store.delete_entry(str(entry_id))
@@ -268,6 +269,7 @@ async def delete_entry(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Entry not found",
         )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ---------------------------------------------------------------------------

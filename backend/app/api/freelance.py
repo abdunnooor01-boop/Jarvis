@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import UTC
 from typing import Any
@@ -97,6 +98,23 @@ _SEED_TEMPLATES = [
     },
 ]
 
+# Price tiers for free-form requests (cents)
+_FREEFORM_PRICES = {
+    "simple": 500,    # $5
+    "medium": 1000,   # $10
+    "complex": 2500,  # $25
+}
+
+_ESTIMATION_SYSTEM_PROMPT = """You are Jarvis's price estimation system. Given a user's task description, estimate its complexity.
+
+Classify the task into one of three tiers:
+- "simple": Quick, single-step tasks (e.g., draft an email, fill one form, simple copywriting)
+- "medium": Multi-step tasks requiring planning (e.g., test a web app, research a topic, content writing)
+- "complex": Complex multi-step tasks requiring deep planning (e.g., full QA suite, data pipeline, multi-page content)
+
+Return ONLY valid JSON with this structure:
+{"complexity": "simple|medium|complex", "reason": "brief one-sentence explanation"}"""
+
 
 def _cents_to_dollars(cents: int) -> float:
     """Convert cents to dollars."""
@@ -147,6 +165,48 @@ def _template_to_response(t: TaskTemplate) -> TaskTemplateResponse:
         required_capabilities=t.required_capabilities or [],
         is_active=t.is_active,
     )
+
+
+async def _estimate_price(description: str) -> tuple[int, str]:
+    """Estimate a price for a free-form task description using the LLM.
+
+    Returns (price_cents, complexity_label).
+    Falls back to medium ($10) if LLM is unavailable or fails.
+    """
+    if not settings.openai_api_key:
+        logger.info("No OpenAI key — using default price for free-form request")
+        return _FREEFORM_PRICES["medium"], "medium"
+
+    try:
+        import openai
+
+        client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
+        response = await client.chat.completions.create(
+            model=settings.openai_model or "gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": _ESTIMATION_SYSTEM_PROMPT},
+                {"role": "user", "content": f"Task description: {description}"},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.2,
+            max_tokens=256,
+        )
+        content = response.choices[0].message.content or "{}"
+        data = json.loads(content)
+        complexity = data.get("complexity", "medium")
+        if complexity not in _FREEFORM_PRICES:
+            complexity = "medium"
+
+        logger.info(
+            "Free-form price estimated",
+            complexity=complexity,
+            price_cents=_FREEFORM_PRICES[complexity],
+            reason=data.get("reason", ""),
+        )
+        return _FREEFORM_PRICES[complexity], complexity
+    except Exception as e:
+        logger.error("Price estimation failed, using default", error=str(e))
+        return _FREEFORM_PRICES["medium"], "medium"
 
 
 async def _job_to_response(job: FreelanceJob, db: AsyncSession) -> FreelanceJobResponse:
@@ -203,36 +263,65 @@ async def create_order(
     body: OrderCreateRequest,
     db: AsyncSession = Depends(get_db),
 ) -> OrderCreateResponse:
-    """Submit a task order — creates a job and generates a Stripe payment link."""
+    """Submit a task order — creates a job and generates a Stripe payment link.
+
+    Accepts either:
+    - `template_id` for a pre-defined task template (one-click ordering)
+    - `description` for a free-form request (e.g., "test my login page")
+
+    If both are provided, template_id takes precedence.
+    Free-form requests use LLM-based price estimation ($5/$10/$25 tiers).
+    """
     await _ensure_templates_seeded(db)
 
-    # Look up the template
-    result = await db.execute(
-        select(TaskTemplate).where(TaskTemplate.id == body.template_id)
-    )
-    template = result.scalar_one_or_none()
+    template = None
+    is_freeform = False
+    job_goal = ""
 
-    if template is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Task template not found",
+    # Determine order type
+    if body.template_id:
+        # Template-based order
+        result = await db.execute(
+            select(TaskTemplate).where(TaskTemplate.id == body.template_id)
         )
+        template = result.scalar_one_or_none()
 
-    if not template.is_active:
+        if template is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Task template not found",
+            )
+
+        if not template.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This task template is no longer available",
+            )
+
+        amount_cents = template.price_cents
+        job_goal = body.description or template.description
+        order_name = template.name
+    elif body.description:
+        # Free-form order — estimate price via LLM
+        is_freeform = True
+        amount_cents, complexity = await _estimate_price(body.description)
+        job_goal = body.description
+        order_name = f"Custom: {body.description[:60]}..."
+    else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This task template is no longer available",
+            detail="Either template_id or description must be provided",
         )
 
     # Create the job
     job = FreelanceJob(
         id=uuid.uuid4(),
-        template_id=template.id,
+        template_id=template.id if template else None,
         customer_email=body.customer_email,
         customer_name=body.customer_name,
-        description=body.description,
+        description=job_goal,
         status="pending",
-        amount_cents=template.price_cents,
+        amount_cents=amount_cents,
     )
     db.add(job)
     await db.commit()
@@ -243,13 +332,14 @@ async def create_order(
     if settings.stripe_secret_key and settings.stripe_secret_key != "sk_test_placeholder":
         try:
             stripe = await _get_stripe_client()
+            product_name = order_name
             product = stripe.Product.create(
-                name=f"Jarvis Freelance: {template.name}",
-                description=f"{template.description[:100]}...",
+                name=f"Jarvis Freelance: {product_name}",
+                description=f"{job_goal[:100]}...",
             )
             price = stripe.Price.create(
                 product=product.id,
-                unit_amount=template.price_cents,
+                unit_amount=amount_cents,
                 currency="usd",
             )
             payment_link = stripe.PaymentLink.create(
@@ -268,15 +358,15 @@ async def create_order(
     logger.info(
         "Freelance order created",
         job_id=str(job.id),
-        template=template.name,
-        amount=template.price_cents,
+        is_freeform=is_freeform,
+        amount=amount_cents,
     )
 
     return OrderCreateResponse(
         job_id=job.id,
-        template_name=template.name,
-        amount_cents=template.price_cents,
-        amount_dollars=_cents_to_dollars(template.price_cents),
+        template_name=order_name if not is_freeform else None,
+        amount_cents=amount_cents,
+        amount_dollars=_cents_to_dollars(amount_cents),
         status=job.status,
         stripe_payment_link=stripe_link,
         message="Order created. Complete payment to start processing.",

@@ -63,6 +63,9 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o"
     anthropic_api_key: str | None = None
     gemini_api_key: str | None = None
+    llm_provider: str = "openai"  # openai, ollama
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3"
 
     # Tools
     tavily_api_key: str | None = None

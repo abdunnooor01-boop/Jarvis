@@ -29,6 +29,8 @@ async def test_llm_service_no_providers() -> None:
         patch("app.services.llm.settings.openai_api_key", None),
         patch("app.services.llm.settings.anthropic_api_key", None),
         patch("app.services.llm.settings.gemini_api_key", None),
+        patch("app.services.llm.settings.llm_provider", "openai"),
+        patch("app.services.llm.settings.ollama_base_url", ""),
     ):
         service = LLMService()
         with pytest.raises(RuntimeError, match="No LLM providers configured"):

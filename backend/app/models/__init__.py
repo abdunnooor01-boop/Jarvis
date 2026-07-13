@@ -9,6 +9,7 @@ from app.models.message import Message
 from app.models.plugin import Plugin
 from app.models.task_plan import TaskPlan
 from app.models.task_step import TaskStep
+from app.models.testing import TestResult, TestRun
 from app.models.user import User
 
 __all__ = [
@@ -21,6 +22,8 @@ __all__ = [
     "FreelanceJob",
     "TaskPlan",
     "TaskStep",
+    "TestRun",
+    "TestResult",
     "FeedSource",
     "KnowledgeEntry",
 ]

@@ -18,6 +18,7 @@ from app.api import memory as memory_routes
 from app.api import plugins as plugin_routes
 from app.api import system as system_routes
 from app.api import tasks as task_routes
+from app.api import testing as testing_routes
 from app.api import vision as vision_routes
 from app.api import voice as voice_routes
 from app.api.ws import router as ws_routes
@@ -88,7 +89,20 @@ async def lifespan(app: FastAPI) -> None:  # noqa: ARG001
         mode="low-power" if settings.low_power_mode else "normal",
     )
 
+    # Start the test scheduler
+    from app.services.test_scheduler import test_scheduler
+
+    test_scheduler.start()
+    logger.info(
+        "Test scheduler started",
+        mode="low-power" if settings.low_power_mode else "normal",
+    )
+
     yield
+
+    # Shutdown the test scheduler
+    await test_scheduler.stop()
+    logger.info("Test scheduler stopped")
 
     # Shutdown the pipeline orchestrator
     await pipeline_scheduler.stop()
@@ -124,6 +138,7 @@ app.include_router(freelance_routes.router)
 app.include_router(knowledge_routes.router)
 app.include_router(memory_routes.router)
 app.include_router(system_routes.router)
+app.include_router(testing_routes.router)
 app.include_router(vision_routes.router)
 app.include_router(voice_routes.router)
 app.include_router(plugin_routes.router)

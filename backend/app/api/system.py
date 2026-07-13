@@ -6,8 +6,12 @@ Provides:
 
 from __future__ import annotations
 
+import asyncio
 import os
+import socket
+from typing import Any
 
+import httpx
 from fastapi import APIRouter
 
 from app.config import settings
@@ -94,4 +98,64 @@ async def system_health() -> dict:
                 1 if settings.low_power_mode else settings.max_concurrent_tasks
             ),
         },
+    }
+
+
+async def _check_internet() -> bool:
+    """Check if the machine has general internet connectivity."""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get("https://1.1.1.1")
+            return resp.status_code < 500
+    except Exception:
+        try:
+            socket.getaddrinfo("google.com", 80)
+            return True
+        except Exception:
+            return False
+
+
+async def _check_openai() -> bool:
+    """Check if the OpenAI API is reachable."""
+    if not settings.openai_api_key:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(
+                "https://api.openai.com/v1/models",
+                headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+            )
+            return resp.status_code < 500
+    except Exception:
+        return False
+
+
+async def _check_ollama() -> bool:
+    """Check if the Ollama local instance is reachable."""
+    if not settings.ollama_base_url:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.get(f"{settings.ollama_base_url}/api/tags")
+            return resp.status_code < 500
+    except Exception:
+        return False
+
+
+@router.get("/connectivity")
+async def system_connectivity() -> dict[str, bool]:
+    """Check connectivity to external services.
+
+    Runs all checks concurrently with individual timeouts.
+    Returns a dict with keys: internet, openai, ollama.
+    """
+    internet, openai, ollama = await asyncio.gather(
+        _check_internet(),
+        _check_openai(),
+        _check_ollama(),
+    )
+    return {
+        "internet": internet,
+        "openai": openai,
+        "ollama": ollama,
     }

@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     # App
     app_name: str = "Jarvis API"
     app_version: str = "0.1.0"
+    app_base_url: str = "http://localhost:3000"
     debug: bool = False
     environment: Literal["development", "staging", "production"] = "development"
 

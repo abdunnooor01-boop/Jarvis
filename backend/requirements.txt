@@ -38,6 +38,8 @@ silero-vad>=5.1.0
 onnxruntime>=1.17.0
 webrtcvad>=2.0.10
 pydub>=0.25.1
+# Note: silero-vad uses ONNX runtime when onnx=True is passed to load_silero_vad().
+# No PyTorch or CUDA packages (torch, triton) needed — saves ~4.6 GB disk space.
 
 # Computer Control
 pyautogui>=0.9.54

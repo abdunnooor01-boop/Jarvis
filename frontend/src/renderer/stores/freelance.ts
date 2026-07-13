@@ -44,7 +44,9 @@ interface FreelanceState {
   fetchJob: (id: string) => Promise<void>
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+import { getApiUrl } from '../utils/env'
+
+const API_URL = getApiUrl()
 
 // Default mock templates
 const MOCK_TEMPLATES: TaskTemplate[] = [

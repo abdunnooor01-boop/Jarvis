@@ -29,6 +29,17 @@ export const KnowledgeDigest: React.FC<KnowledgeDigestProps> = ({ digest, isLoad
     )
   }
 
+  // Gracefully resolve dates and text across real and mock backend models
+  const generatedAt = digest.generated_at || digest.created_at || new Date().toISOString()
+  const title = digest.title || "Weekly AI Digest"
+  const summary = digest.summary || `A compiled digest of recent AI news and updates across ${digest.total_entries || 0} recent developments.`
+
+  const hasFlatEntries = Array.isArray(digest.entries) && digest.entries.length > 0
+  const flatEntries = hasFlatEntries ? digest.entries : []
+
+  const hasSections = Array.isArray(digest.sections) && digest.sections.length > 0
+  const sections = hasSections ? digest.sections : []
+
   return (
     <div className="space-y-6 animate-fadeIn max-w-3xl mx-auto">
       {/* Digest Header Hero */}
@@ -37,37 +48,39 @@ export const KnowledgeDigest: React.FC<KnowledgeDigestProps> = ({ digest, isLoad
         <div className="relative z-10 space-y-3">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-semibold uppercase tracking-wider border border-white/10">
             <Calendar size={12} />
-            <span>Compiled {new Date(digest.created_at).toLocaleDateString()}</span>
+            <span>Compiled {new Date(generatedAt).toLocaleDateString()}</span>
           </div>
-          <h3 className="text-2xl sm:text-3xl font-bold tracking-tight">{digest.title}</h3>
+          <h3 className="text-2xl sm:text-3xl font-bold tracking-tight">{title}</h3>
           <p className="text-sm sm:text-base text-indigo-100/90 leading-relaxed font-medium">
-            {digest.summary}
+            {summary}
           </p>
         </div>
       </div>
 
-      {/* Digest Sections */}
+      {/* Digest Sections / Entries */}
       <div className="space-y-8">
-        {digest.sections.map((section, sIdx) => (
-          <div key={sIdx} className="space-y-4">
+        {hasFlatEntries ? (
+          <div className="space-y-4">
             <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800/80 pb-2">
               <span className="w-2.5 h-2.5 bg-indigo-500 rounded-full"></span>
               <h4 className="text-sm font-bold text-slate-950 dark:text-slate-200 uppercase tracking-wider">
-                {section.category}
+                Recent Developments
               </h4>
             </div>
-
             <div className="grid grid-cols-1 gap-4">
-              {section.entries.map((entry, eIdx) => (
+              {flatEntries.map((entry: any, eIdx: number) => (
                 <div
                   key={eIdx}
                   className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/60 p-5 rounded-xl shadow-xs hover:border-indigo-500/20 dark:hover:border-indigo-500/30 hover:shadow-md transition-all flex flex-col justify-between"
                 >
                   <div className="space-y-2">
                     <div className="flex justify-between items-start gap-4">
-                      <h5 className="font-bold text-slate-800 dark:text-white text-base hover:text-indigo-600 dark:hover:text-indigo-400 leading-snug">
-                        {entry.title}
-                      </h5>
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] text-indigo-500 font-bold uppercase">{entry.source_name}</span>
+                        <h5 className="font-bold text-slate-800 dark:text-white text-base hover:text-indigo-600 dark:hover:text-indigo-400 leading-snug">
+                          {entry.title}
+                        </h5>
+                      </div>
                       {entry.url && (
                         <a
                           href={entry.url}
@@ -84,9 +97,9 @@ export const KnowledgeDigest: React.FC<KnowledgeDigestProps> = ({ digest, isLoad
                     </p>
                   </div>
 
-                  {entry.tags && entry.tags.length > 0 && (
+                  {(entry.topics || entry.tags) && (entry.topics || entry.tags).length > 0 && (
                     <div className="flex flex-wrap gap-1.5 pt-3 mt-2 border-t border-slate-50 dark:border-slate-800/40">
-                      {entry.tags.map((tag, tIdx) => (
+                      {(entry.topics || entry.tags).map((tag: string, tIdx: number) => (
                         <span
                           key={tIdx}
                           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-50 dark:bg-slate-950 text-slate-400 dark:text-slate-500 border border-slate-100 dark:border-slate-800/50"
@@ -101,7 +114,62 @@ export const KnowledgeDigest: React.FC<KnowledgeDigestProps> = ({ digest, isLoad
               ))}
             </div>
           </div>
-        ))}
+        ) : (
+          sections.map((section, sIdx) => (
+            <div key={sIdx} className="space-y-4">
+              <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800/80 pb-2">
+                <span className="w-2.5 h-2.5 bg-indigo-500 rounded-full"></span>
+                <h4 className="text-sm font-bold text-slate-950 dark:text-slate-200 uppercase tracking-wider">
+                  {section.category}
+                </h4>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                {section.entries.map((entry, eIdx) => (
+                  <div
+                    key={eIdx}
+                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/60 p-5 rounded-xl shadow-xs hover:border-indigo-500/20 dark:hover:border-indigo-500/30 hover:shadow-md transition-all flex flex-col justify-between"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-start gap-4">
+                        <h5 className="font-bold text-slate-800 dark:text-white text-base hover:text-indigo-600 dark:hover:text-indigo-400 leading-snug">
+                          {entry.title}
+                        </h5>
+                        {entry.url && (
+                          <a
+                            href={entry.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-indigo-500 transition-colors"
+                          >
+                            <ExternalLink size={14} />
+                          </a>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                        {entry.summary}
+                      </p>
+                    </div>
+
+                    {entry.tags && entry.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-3 mt-2 border-t border-slate-50 dark:border-slate-800/40">
+                        {entry.tags.map((tag, tIdx) => (
+                          <span
+                            key={tIdx}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-50 dark:bg-slate-950 text-slate-400 dark:text-slate-500 border border-slate-100 dark:border-slate-800/50"
+                          >
+                            <Tag size={8} />
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   )

@@ -264,7 +264,7 @@ export const KnowledgeFeed: React.FC<KnowledgeFeedProps> = ({ onClose }) => {
                         {/* Card Footer tags and action */}
                         <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-3 mt-4">
                           <div className="flex flex-wrap gap-1 max-w-[70%]">
-                            {entry.tags.slice(0, 3).map((tag, tIdx) => (
+                            {(entry.topics || entry.tags || []).slice(0, 3).map((tag, tIdx) => (
                               <span
                                 key={tIdx}
                                 className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-50 dark:bg-slate-950 text-slate-400 dark:text-slate-500 border border-slate-100 dark:border-slate-800/50"

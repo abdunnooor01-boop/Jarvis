@@ -46,6 +46,18 @@ app.whenReady().then(() => {
   ipcMain.handle('store-set', (_, key, value) => store.set(key, value))
   ipcMain.handle('store-delete', (_, key) => store.delete(key))
 
+  // Custom IPC handlers for dynamic backend URL configuration
+  ipcMain.on('get-backend-url-sync', (event) => {
+    event.returnValue = process.env.JARVIS_BACKEND_URL || process.env.VITE_API_URL || store.get('backend-url') || 'http://localhost:8000'
+  })
+  ipcMain.handle('get-backend-url', () => {
+    return process.env.JARVIS_BACKEND_URL || process.env.VITE_API_URL || store.get('backend-url') || 'http://localhost:8000'
+  })
+  ipcMain.handle('set-backend-url', (_, url) => {
+    store.set('backend-url', url)
+    return true
+  })
+
   createWindow()
 
   app.on('activate', function () {

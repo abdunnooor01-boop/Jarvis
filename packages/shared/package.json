@@ -1,0 +1,18 @@
+{
+  "name": "@jarvis/shared",
+  "version": "1.0.0",
+  "description": "Shared API client, TypeScript types, and utility helpers for Jarvis desktop and mobile",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "prepublishOnly": "npm run build"
+  },
+  "author": "Shipwright Engineering",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}

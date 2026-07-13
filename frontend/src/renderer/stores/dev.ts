@@ -107,7 +107,9 @@ interface DevState {
   fetchLogs: (filters?: { level?: string; search?: string; page?: number; page_size?: number }) => Promise<void>
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+import { getApiUrl } from '../utils/env'
+
+const API_URL = getApiUrl()
 
 export const useDevStore = create<DevState>((set, get) => ({
   health: null,

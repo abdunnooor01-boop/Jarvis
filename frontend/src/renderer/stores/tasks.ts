@@ -50,7 +50,9 @@ interface TaskState {
   handleWebSocketEvent: (event: any) => void
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+import { getApiUrl } from '../utils/env'
+
+const API_URL = getApiUrl()
 
 export const useTaskStore = create<TaskState>((set, get) => ({
   plans: [],

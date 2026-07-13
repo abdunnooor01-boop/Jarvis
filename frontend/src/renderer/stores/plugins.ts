@@ -21,7 +21,9 @@ interface PluginState {
   uninstallPlugin: (name: string) => Promise<void>
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+import { getApiUrl } from '../utils/env'
+
+const API_URL = getApiUrl()
 
 export const usePluginStore = create<PluginState>((set, get) => ({
   plugins: [],

@@ -9,7 +9,7 @@ from app.models.message import Message
 from app.models.plugin import Plugin
 from app.models.task_plan import TaskPlan
 from app.models.task_step import TaskStep
-from app.models.testing import TestPlan, TestRun, TestSubscription
+from app.models.testing import TestPlan, TestResult, TestRun, TestSubscription
 from app.models.user import User
 
 __all__ = [
@@ -22,9 +22,10 @@ __all__ = [
     "FreelanceJob",
     "TaskPlan",
     "TaskStep",
-    "FeedSource",
-    "KnowledgeEntry",
     "TestPlan",
     "TestRun",
+    "TestResult",
     "TestSubscription",
+    "FeedSource",
+    "KnowledgeEntry",
 ]

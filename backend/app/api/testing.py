@@ -1,4 +1,4 @@
-"""SaaS Testing Service API — test plans, runs, and subscription management."""
+"""SaaS Testing Service API — plans, runs, results, subscriptions, webhooks, and scheduler."""
 
 from __future__ import annotations
 
@@ -14,23 +14,104 @@ from app.config import settings
 from app.core.dependencies import get_current_user
 from app.core.logging import get_logger
 from app.database import get_db
-from app.models.testing import TestPlan, TestRun, TestSubscription
+from app.models.testing import TestPlan, TestResult, TestRun, TestSubscription
 from app.models.user import User
 from app.schemas.testing import (
     TIER_INFO,
     SubscriptionCreateRequest,
     SubscriptionResponse,
+    TestCriterionCreate,
     TestPlanCreateRequest,
     TestPlanListResponse,
     TestPlanResponse,
     TestPlanUpdateRequest,
+    TestResultResponse,
+    TestRunActionResponse,
+    TestRunCreateRequest,
     TestRunListResponse,
     TestRunResponse,
+    TestRunStatusResponse,
+    WebhookPayload,
+    WebhookTriggerResponse,
 )
+from app.services.test_report import get_report_generator
+from app.services.testing_engine import get_testing_engine
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/testing", tags=["testing"])
+
+# Singleton
+_testing_engine = get_testing_engine()
+_report_generator = get_report_generator()
+
+
+# ---------------------------------------------------------------------------
+# Helpers: ORM -> Response
+# ---------------------------------------------------------------------------
+
+
+def _result_to_response(result: TestResult) -> dict[str, Any]:
+    """Convert a TestResult ORM object to a dict for the response."""
+    return {
+        "id": result.id,
+        "run_id": result.run_id,
+        "step_number": result.step_number,
+        "criterion": result.criterion,
+        "test_type": result.test_type,
+        "passed": result.passed,
+        "detail": result.detail,
+        "screenshot_path": result.screenshot_path,
+        "duration_ms": result.duration_ms,
+        "created_at": str(result.created_at),
+    }
+
+
+def _run_to_response(run: TestRun) -> TestRunResponse:
+    """Convert a TestRun ORM object to the full response schema."""
+    return TestRunResponse(
+        id=run.id,
+        plan_id=run.plan_id,
+        user_id=run.user_id,
+        url=run.url,
+        name=run.name,
+        status=run.status,
+        total_tests=run.total_tests,
+        passed=run.passed,
+        failed=run.failed,
+        report_path=run.report_path,
+        results_json=run.results_json or {},
+        screenshots=run.screenshots or [],
+        error_message=run.error_message,
+        summary=run.summary,
+        results=[_result_to_response(r) for r in (run.results or [])],
+        started_at=str(run.started_at) if run.started_at else None,
+        completed_at=str(run.completed_at) if run.completed_at else None,
+        created_at=str(run.created_at),
+        updated_at=str(run.updated_at),
+    )
+
+
+def _run_to_status(run: TestRun) -> TestRunStatusResponse:
+    """Convert a TestRun to a lightweight status response."""
+    progress = 0.0
+    if run.total_tests > 0:
+        completed = run.passed + run.failed
+        progress = completed / run.total_tests
+
+    return TestRunStatusResponse(
+        id=run.id,
+        url=run.url,
+        name=run.name,
+        status=run.status,
+        total_tests=run.total_tests,
+        passed=run.passed,
+        failed=run.failed,
+        report_path=run.report_path,
+        progress=progress,
+        started_at=str(run.started_at) if run.started_at else None,
+        completed_at=str(run.completed_at) if run.completed_at else None,
+    )
 
 
 def _plan_to_response(plan: TestPlan) -> dict[str, Any]:
@@ -45,22 +126,6 @@ def _plan_to_response(plan: TestPlan) -> dict[str, Any]:
         "status": plan.status,
         "created_at": plan.created_at.isoformat(),
         "updated_at": plan.updated_at.isoformat(),
-    }
-
-
-def _run_to_response(run: TestRun) -> dict[str, Any]:
-    """Convert a TestRun ORM object to a response dict."""
-    return {
-        "id": run.id,
-        "plan_id": run.plan_id,
-        "status": run.status,
-        "results_json": run.results_json or {},
-        "screenshots": run.screenshots or [],
-        "error_message": run.error_message,
-        "summary": run.summary,
-        "started_at": run.started_at.isoformat() if run.started_at else None,
-        "completed_at": run.completed_at.isoformat() if run.completed_at else None,
-        "created_at": run.created_at.isoformat(),
     }
 
 
@@ -143,6 +208,328 @@ async def _create_stripe_subscription(
         ) from e
 
 
+# ---------------------------------------------------------------------------
+#  Run Endpoints (direct)
+# ---------------------------------------------------------------------------
+
+
+@router.post("", response_model=TestRunResponse, status_code=status.HTTP_201_CREATED)
+async def create_test_run(
+    body: TestRunCreateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TestRunResponse:
+    """Create a new test run with criteria and start execution immediately.
+
+    Accepts a URL and a list of test criteria. Each criterion is a
+    description of what to verify (e.g. "The login button should be visible")
+    with a test type (page_load, element_visibility, text_content, etc.).
+    """
+    criteria = [
+        {"criterion": c.criterion, "test_type": c.test_type}
+        for c in body.criteria
+    ]
+
+    run = await _testing_engine.create_test_run(
+        user_id=current_user.id,
+        url=body.url,
+        criteria=criteria,
+        name=body.name,
+        db=db,
+    )
+
+    import asyncio
+
+    asyncio.create_task(
+        _testing_engine.run_test_plan(str(run.id))
+    )
+
+    logger.info(
+        "Test run created and started",
+        run_id=str(run.id),
+        user_id=str(current_user.id),
+        url=body.url[:80],
+        criteria_count=len(criteria),
+    )
+
+    return _run_to_response(run)
+
+
+@router.get("/{run_id}", response_model=TestRunResponse)
+async def get_test_run(
+    run_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TestRunResponse:
+    """Get the full details and results of a test run."""
+    result = await db.execute(
+        select(TestRun).where(
+            TestRun.id == run_id,
+            TestRun.user_id == current_user.id,
+        )
+    )
+    run = result.scalar_one_or_none()
+
+    if run is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Test run not found",
+        )
+
+    return _run_to_response(run)
+
+
+@router.get("/{run_id}/status", response_model=TestRunStatusResponse)
+async def get_test_run_status(
+    run_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TestRunStatusResponse:
+    """Get the lightweight status of a test run (suitable for polling).
+
+    Returns progress (0.0 to 1.0) and current status without
+    full result details.
+    """
+    result = await db.execute(
+        select(TestRun).where(
+            TestRun.id == run_id,
+            TestRun.user_id == current_user.id,
+        )
+    )
+    run = result.scalar_one_or_none()
+
+    if run is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Test run not found",
+        )
+
+    return _run_to_status(run)
+
+
+@router.get("", response_model=TestRunListResponse)
+async def list_test_runs(
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TestRunListResponse:
+    """List all test runs for the current user with pagination."""
+    count_result = await db.execute(
+        select(func.count(TestRun.id)).where(TestRun.user_id == current_user.id)
+    )
+    total = count_result.scalar() or 0
+
+    offset = (page - 1) * page_size
+    result = await db.execute(
+        select(TestRun)
+        .where(TestRun.user_id == current_user.id)
+        .order_by(TestRun.created_at.desc())
+        .offset(offset)
+        .limit(page_size)
+    )
+    runs = result.scalars().all()
+
+    return TestRunListResponse(
+        items=[_run_to_response(r) for r in runs],
+        total=total,
+        page=page,
+        page_size=page_size,
+        pages=max(1, (total + page_size - 1) // page_size),
+    )
+
+
+@router.post("/{run_id}/rerun", response_model=TestRunActionResponse)
+async def rerun_test_run(
+    run_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TestRunActionResponse:
+    """Rerun a previously completed test run with the same criteria."""
+    result = await db.execute(
+        select(TestRun).where(
+            TestRun.id == run_id,
+            TestRun.user_id == current_user.id,
+        )
+    )
+    old_run = result.scalar_one_or_none()
+
+    if old_run is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Test run not found",
+        )
+
+    criteria = [
+        {"criterion": r.criterion, "test_type": r.test_type}
+        for r in (old_run.results or [])
+    ]
+
+    if not criteria:
+        criteria = [
+            {"criterion": "The page loads without errors", "test_type": "page_load"}
+        ]
+
+    new_run = await _testing_engine.create_test_run(
+        user_id=current_user.id,
+        url=old_run.url,
+        criteria=criteria,
+        name=f"{old_run.name or 'Rerun'} (rerun)",
+        db=db,
+    )
+
+    import asyncio
+
+    asyncio.create_task(
+        _testing_engine.run_test_plan(str(new_run.id))
+    )
+
+    logger.info(
+        "Test run rerun created",
+        original_run_id=str(run_id),
+        new_run_id=str(new_run.id),
+    )
+
+    return TestRunActionResponse(
+        run_id=new_run.id,
+        status="running",
+        message="Test run rerun has been started",
+    )
+
+
+@router.post("/{run_id}/report", response_model=TestRunActionResponse)
+async def generate_test_report(
+    run_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TestRunActionResponse:
+    """Generate or regenerate the HTML report for a test run."""
+    result = await db.execute(
+        select(TestRun).where(
+            TestRun.id == run_id,
+            TestRun.user_id == current_user.id,
+        )
+    )
+    run = result.scalar_one_or_none()
+
+    if run is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Test run not found",
+        )
+
+    if run.status not in ("completed", "failed"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot generate report for a run in '{run.status}' state",
+        )
+
+    report_path = await _report_generator.generate_report(str(run_id), db=db)
+
+    if report_path is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate report",
+        )
+
+    return TestRunActionResponse(
+        run_id=run.id,
+        status=run.status,
+        message=f"Report generated at: {report_path}",
+    )
+
+
+@router.delete("/{run_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_test_run(
+    run_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Delete a test run and all its results."""
+    result = await db.execute(
+        select(TestRun).where(
+            TestRun.id == run_id,
+            TestRun.user_id == current_user.id,
+        )
+    )
+    run = result.scalar_one_or_none()
+
+    if run is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Test run not found",
+        )
+
+    await db.delete(run)
+    await db.commit()
+
+    logger.info("Test run deleted", run_id=str(run_id))
+
+
+# ---------------------------------------------------------------------------
+# Webhook endpoint
+# ---------------------------------------------------------------------------
+
+
+@router.post("/webhook", response_model=WebhookTriggerResponse)
+async def test_webhook(
+    body: WebhookPayload,
+) -> WebhookTriggerResponse:
+    """Accept a CI webhook (GitHub Actions, etc.) to trigger a test run."""
+    from app.services.test_scheduler import test_scheduler
+
+    test_url = body.url or "http://localhost:3000"
+
+    payload = {
+        "url": test_url,
+        "ref": body.ref,
+        "event": body.event,
+        "repository": body.repository,
+        "commit_sha": body.commit_sha,
+        **body.extra,
+    }
+
+    report = await test_scheduler.trigger_webhook_run(
+        url=test_url,
+        payload=payload,
+    )
+
+    run_id = report.get("run_id", "")
+    report_url = report.get("report_path")
+
+    logger.info(
+        "Webhook-triggered test run created",
+        run_id=run_id,
+        url=test_url,
+        event=body.event or "unknown",
+        repository=body.repository or "unknown",
+    )
+
+    return WebhookTriggerResponse(
+        run_id=uuid.UUID(run_id) if run_id else uuid.uuid4(),
+        status="running",
+        message="Test run triggered by webhook",
+        report_url=report_url,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Scheduler status (admin)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/scheduler/status")
+async def get_scheduler_status() -> dict[str, Any]:
+    """Get the status of the background test scheduler.
+
+    Not auth-protected for monitoring simplicity.
+    In production, add admin-only access.
+    """
+    from app.services.test_scheduler import test_scheduler
+
+    return test_scheduler.get_status()
+
+
 # ------------------------------------------------------------------ #
 #  Test Plan Endpoints
 # ------------------------------------------------------------------ #
@@ -155,7 +542,6 @@ async def create_test_plan(
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Create a new test plan for the authenticated user."""
-    # Check subscription limits (if user has a plan)
     sub_result = await db.execute(
         select(TestSubscription).where(
             TestSubscription.customer_id == current_user.id,
@@ -166,7 +552,6 @@ async def create_test_plan(
 
     if subscription:
         tier_config = TIER_INFO.get(subscription.tier, TIER_INFO["basic"])
-        # Count existing active plans
         plan_count_result = await db.execute(
             select(func.count(TestPlan.id)).where(
                 TestPlan.customer_id == current_user.id,
@@ -211,12 +596,10 @@ async def list_test_plans(
 
     query = query.order_by(TestPlan.created_at.desc())
 
-    # Count total
     count_query = select(func.count()).select_from(query.subquery())
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
 
-    # Paginate
     offset = (page - 1) * page_size
     query = query.offset(offset).limit(page_size)
     result = await db.execute(query)
@@ -284,7 +667,7 @@ async def update_test_plan(
 
 
 # ------------------------------------------------------------------ #
-#  Test Run Endpoints
+#  Plan-triggered Run Endpoints
 # ------------------------------------------------------------------ #
 
 
@@ -295,7 +678,6 @@ async def trigger_test_run(
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Trigger a new test run for a given plan."""
-    # Verify the plan belongs to the user
     result = await db.execute(
         select(TestPlan).where(
             TestPlan.id == plan_id,
@@ -309,7 +691,6 @@ async def trigger_test_run(
             detail="Test plan not found",
         )
 
-    # Check subscription for run limits
     sub_result = await db.execute(
         select(TestSubscription).where(
             TestSubscription.customer_id == current_user.id,
@@ -319,7 +700,6 @@ async def trigger_test_run(
     subscription = sub_result.scalar_one_or_none()
     if subscription:
         tier_config = TIER_INFO.get(subscription.tier, TIER_INFO["basic"])
-        # Count runs this month
         now = datetime.now(UTC)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         run_count_result = await db.execute(
@@ -337,6 +717,8 @@ async def trigger_test_run(
 
     test_run = TestRun(
         plan_id=plan_id,
+        user_id=current_user.id,
+        url=plan.url,
         status="pending",
     )
     db.add(test_run)
@@ -353,7 +735,7 @@ async def trigger_test_run(
 
 
 @router.get("/runs", response_model=TestRunListResponse)
-async def list_test_runs(
+async def list_test_runs_by_plan(
     plan_id: uuid.UUID | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -361,7 +743,6 @@ async def list_test_runs(
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     """List test runs, optionally filtered by plan."""
-    # Base query: runs must belong to user's plans
     query = (
         select(TestRun)
         .join(TestPlan, TestRun.plan_id == TestPlan.id)
@@ -373,12 +754,10 @@ async def list_test_runs(
 
     query = query.order_by(TestRun.created_at.desc())
 
-    # Count
     count_query = select(func.count()).select_from(query.subquery())
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
 
-    # Paginate
     offset = (page - 1) * page_size
     query = query.offset(offset).limit(page_size)
     result = await db.execute(query)
@@ -394,12 +773,12 @@ async def list_test_runs(
 
 
 @router.get("/runs/{run_id}", response_model=TestRunResponse)
-async def get_test_run(
+async def get_test_run_by_plan(
     run_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Get details for a specific test run."""
+    """Get details for a specific test run (via plan ownership)."""
     result = await db.execute(
         select(TestRun)
         .join(TestPlan, TestRun.plan_id == TestPlan.id)
@@ -453,20 +832,17 @@ async def create_subscription(
             detail=f"Invalid tier '{request.tier}'. Valid tiers: {', '.join(TIER_INFO.keys())}",
         )
 
-    # Check for existing subscription
     result = await db.execute(
         select(TestSubscription).where(TestSubscription.customer_id == current_user.id)
     )
     existing = result.scalar_one_or_none()
 
-    # Create Stripe subscription
     stripe_result = await _create_stripe_subscription(
         customer_email=current_user.email,
         tier=request.tier,
     )
 
     if existing:
-        # Update existing subscription
         existing.tier = request.tier
         if not stripe_result.get("mock"):
             existing.stripe_subscription_id = stripe_result.get("subscription_id")
@@ -476,7 +852,6 @@ async def create_subscription(
         await db.refresh(existing)
         subscription = existing
     else:
-        # Create new subscription
         sub = TestSubscription(
             customer_id=current_user.id,
             tier=request.tier,

@@ -23,7 +23,7 @@ from app.api.ws import router as ws_routes
 from app.config import settings
 from app.core.logging import get_logger, setup_logging
 from app.core.security import add_security_headers, validate_and_warn
-from app.database import Base, engine
+from app.database import Base, get_engine
 
 
 @asynccontextmanager
@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI) -> None:  # noqa: ARG001
     validate_and_warn()
 
     # Create database tables on startup (dev mode — switch to Alembic for prod)
-    async with engine.begin() as conn:
+    async with get_engine().begin() as conn:
         # Enable pgvector extension if available
         try:
             await conn.execute(

@@ -15,6 +15,7 @@ from app.api import dev_logs as dev_log_routes
 from app.api import freelance as freelance_routes
 from app.api import knowledge as knowledge_routes
 from app.api import memory as memory_routes
+from app.api import notifications as notification_routes
 from app.api import plugins as plugin_routes
 from app.api import system as system_routes
 from app.api import tasks as task_routes
@@ -137,6 +138,7 @@ app.include_router(dev_log_routes.router)
 app.include_router(freelance_routes.router)
 app.include_router(knowledge_routes.router)
 app.include_router(memory_routes.router)
+app.include_router(notification_routes.router)
 app.include_router(system_routes.router)
 app.include_router(testing_routes.router)
 app.include_router(vision_routes.router)

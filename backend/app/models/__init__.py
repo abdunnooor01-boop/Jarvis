@@ -6,6 +6,7 @@ from app.models.freelance_task import FreelanceJob, TaskTemplate
 from app.models.knowledge_entry import FeedSource, KnowledgeEntry
 from app.models.memory import MemoryEntry
 from app.models.message import Message
+from app.models.notification import DeviceToken, NotificationEvent, NotificationPreference
 from app.models.plugin import Plugin
 from app.models.task_plan import TaskPlan
 from app.models.task_step import TaskStep
@@ -28,4 +29,7 @@ __all__ = [
     "TestSubscription",
     "FeedSource",
     "KnowledgeEntry",
+    "DeviceToken",
+    "NotificationEvent",
+    "NotificationPreference",
 ]

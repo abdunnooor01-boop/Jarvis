@@ -143,6 +143,7 @@ app.include_router(vision_routes.router)
 app.include_router(voice_routes.router)
 app.include_router(plugin_routes.router)
 app.include_router(task_routes.router)
+app.include_router(testing_routes.router)
 app.include_router(ws_routes)
 
 

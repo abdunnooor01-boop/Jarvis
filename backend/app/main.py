@@ -24,7 +24,7 @@ from app.api.ws import router as ws_routes
 from app.config import settings
 from app.core.logging import get_logger, setup_logging
 from app.core.security import add_security_headers, validate_and_warn
-from app.database import Base, engine
+from app.database import Base, get_engine
 
 
 @asynccontextmanager
@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI) -> None:  # noqa: ARG001
     validate_and_warn()
 
     # Create database tables on startup (dev mode — switch to Alembic for prod)
-    async with engine.begin() as conn:
+    async with get_engine().begin() as conn:
         # Enable pgvector extension if available
         try:
             await conn.execute(
@@ -46,6 +46,19 @@ async def lifespan(app: FastAPI) -> None:  # noqa: ARG001
         except Exception:
             logger.info("pgvector extension not available (expected with SQLite)")
         await conn.run_sync(Base.metadata.create_all)
+
+    # Log low-power mode
+    if settings.low_power_mode:
+        logger.warning(
+            "LOW-POWER MODE ACTIVE",
+            max_memory_mb=settings.max_memory_mb or "unlimited",
+            max_concurrent_tasks=min(1, settings.max_concurrent_tasks),
+            crawl_interval_hours=48,
+            auto_register_tools=False,
+            embedding_generation=False,
+        )
+    else:
+        logger.info("Normal power mode", max_concurrent_tasks=settings.max_concurrent_tasks)
 
     # Preload plugins
     try:
@@ -65,10 +78,14 @@ async def lifespan(app: FastAPI) -> None:  # noqa: ARG001
     from app.services.scheduler import scheduler as pipeline_scheduler
 
     pipeline_scheduler.start()
+    effective_crawl_interval = (
+        48 if settings.low_power_mode else settings.crawl_interval_hours
+    )
     logger.info(
         "Pipeline orchestrator started",
-        crawl_interval_hours=settings.crawl_interval_hours,
+        crawl_interval_hours=effective_crawl_interval,
         digest_day=settings.digest_day_of_week,
+        mode="low-power" if settings.low_power_mode else "normal",
     )
 
     yield
@@ -106,11 +123,11 @@ app.include_router(dev_log_routes.router)
 app.include_router(freelance_routes.router)
 app.include_router(knowledge_routes.router)
 app.include_router(memory_routes.router)
-app.include_router(plugin_routes.router)
 app.include_router(system_routes.router)
-app.include_router(task_routes.router)
 app.include_router(vision_routes.router)
 app.include_router(voice_routes.router)
+app.include_router(plugin_routes.router)
+app.include_router(task_routes.router)
 app.include_router(ws_routes)
 
 

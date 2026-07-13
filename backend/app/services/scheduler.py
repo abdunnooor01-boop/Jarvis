@@ -137,19 +137,20 @@ class PipelineOrchestrator:
                 )
                 self._last_discovery = datetime.now(UTC)
 
-                # Auto-flag high-confidence tools
+                # Auto-flag high-confidence tools (skipped in low-power mode)
                 flagged = 0
-                for tool in discovery_result.get("tools_found", []):
-                    if tool.get("confidence") == "high":
-                        try:
-                            await self._discovery.flag_for_review(tool)
-                            flagged += 1
-                        except Exception as flag_err:
-                            logger.warning(
-                                "Failed to flag tool",
-                                tool=tool.get("title"),
-                                error=str(flag_err),
-                            )
+                if not settings.low_power_mode:
+                    for tool in discovery_result.get("tools_found", []):
+                        if tool.get("confidence") == "high":
+                            try:
+                                await self._discovery.flag_for_review(tool)
+                                flagged += 1
+                            except Exception as flag_err:
+                                logger.warning(
+                                    "Failed to flag tool",
+                                    tool=tool.get("title"),
+                                    error=str(flag_err),
+                                )
 
                 report["discovery"] = {
                     "entries_scanned": discovery_result["entries_scanned"],
@@ -231,10 +232,10 @@ class PipelineOrchestrator:
     def _seconds_until_next_crawl(self) -> float:
         """Calculate seconds until the next scheduled crawl.
 
-        Default: daily at 2 AM. If the last crawl was less than the
-        configured interval ago, wait until the interval passes.
+        In low-power mode, crawl every 48 hours instead of 24.
         """
-        interval_seconds = settings.crawl_interval_hours * 3600
+        interval_hours = 48 if settings.low_power_mode else settings.crawl_interval_hours
+        interval_seconds = interval_hours * 3600
 
         if self._last_crawl is None:
             # First run — start immediately
@@ -275,6 +276,7 @@ class PipelineOrchestrator:
 
     def get_status(self) -> dict[str, Any]:
         """Get current scheduler status for monitoring."""
+        effective_interval = 48 if settings.low_power_mode else settings.crawl_interval_hours
         return {
             "running": self._running,
             "total_crawls": self._total_crawls,
@@ -285,8 +287,9 @@ class PipelineOrchestrator:
             "last_discovery": (
                 self._last_discovery.isoformat() if self._last_discovery else None
             ),
-            "crawl_interval_hours": settings.crawl_interval_hours,
+            "crawl_interval_hours": effective_interval,
             "digest_day_of_week": settings.digest_day_of_week,
+            "mode": "low-power" if settings.low_power_mode else "normal",
         }
 
 

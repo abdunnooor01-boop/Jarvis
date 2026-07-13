@@ -125,11 +125,12 @@ class VoiceService:
             return self._detect_speech_webrtc(audio_chunk)
 
     def _detect_speech_silero(self, audio_chunk: bytes) -> bool:
-        """Detect speech using Silero VAD."""
+        """Detect speech using Silero VAD with ONNX runtime (CPU-only)."""
         if self._silero_model is None:
             import silero_vad
 
-            self._silero_model = silero_vad.load_silero_vad()
+            # Load with ONNX runtime to avoid PyTorch/CUDA dependency
+            self._silero_model = silero_vad.load_silero_vad(onnx=True)
             self._silero_model.reset_states()
 
         # Convert PCM bytes to float32 numpy array

@@ -18,6 +18,7 @@ from app.api import memory as memory_routes
 from app.api import notifications as notification_routes
 from app.api import plugins as plugin_routes
 from app.api import system as system_routes
+from app.api import sync as sync_routes
 from app.api import tasks as task_routes
 from app.api import testing as testing_routes
 from app.api import vision as vision_routes
@@ -140,12 +141,12 @@ app.include_router(knowledge_routes.router)
 app.include_router(memory_routes.router)
 app.include_router(notification_routes.router)
 app.include_router(system_routes.router)
+app.include_router(sync_routes.router)
 app.include_router(testing_routes.router)
 app.include_router(vision_routes.router)
 app.include_router(voice_routes.router)
 app.include_router(plugin_routes.router)
 app.include_router(task_routes.router)
-app.include_router(testing_routes.router)
 app.include_router(ws_routes)
 
 

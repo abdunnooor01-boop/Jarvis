@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Jarvis",
+    "slug": "jarvis-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#0f172a"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.shipwright.jarvis"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0f172a"
+      },
+      "package": "com.shipwright.jarvis"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "@react-native-voice/voice",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#4f46e5"
+        }
+      ]
+    ]
+  }
+}

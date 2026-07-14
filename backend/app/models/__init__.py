@@ -9,6 +9,7 @@ from app.models.message import Message
 from app.models.notification import DeviceToken, NotificationEvent, NotificationPreference
 from app.models.plugin import Plugin
 from app.models.task_plan import TaskPlan
+from app.models.task_queue import TaskQueueItem
 from app.models.task_step import TaskStep
 from app.models.testing import TestPlan, TestResult, TestRun, TestSubscription
 from app.models.user import User
@@ -32,4 +33,5 @@ __all__ = [
     "DeviceToken",
     "NotificationEvent",
     "NotificationPreference",
+    "TaskQueueItem",
 ]

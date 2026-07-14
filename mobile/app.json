@@ -22,7 +22,14 @@
     },
     "plugins": [
       "expo-secure-store",
-      "@react-native-voice/voice"
+      "@react-native-voice/voice",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#4f46e5"
+        }
+      ]
     ]
   }
 }

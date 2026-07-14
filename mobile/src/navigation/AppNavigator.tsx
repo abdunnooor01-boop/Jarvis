@@ -5,6 +5,10 @@ import { View, Text, StyleSheet } from 'react-native';
 import { colors, fontSize } from '../utils/theme';
 import { useOfflineQueueStore } from '../stores/offlineQueue';
 import ChatScreen from '../screens/ChatScreen';
+import KnowledgeScreen from '../screens/KnowledgeScreen';
+import TestingScreen from '../screens/TestingScreen';
+import FreelanceScreen from '../screens/FreelanceScreen';
+import PluginScreen from '../screens/PluginScreen';
 import TaskQueueScreen from '../screens/TaskQueueScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 
@@ -14,12 +18,12 @@ const Tab = createBottomTabNavigator();
 const TabIcon = ({ name, focused }: { name: string; focused: boolean }) => {
   const icons: Record<string, string> = {
     Chat: '💬',
-    Tasks: '📋',
-    Settings: '⚙️',
     Knowledge: '📚',
+    Tasks: '📋',
     Testing: '🔬',
     Freelance: '💼',
     Plugins: '🧩',
+    Settings: '⚙️',
   };
 
   return (
@@ -36,7 +40,6 @@ const AppNavigator = () => {
 
   useEffect(() => {
     loadQueue();
-    // Simple connectivity check - will be enhanced with NetInfo
     setOnline(true);
   }, []);
 
@@ -55,7 +58,11 @@ const AppNavigator = () => {
         })}
       >
         <Tab.Screen name="Chat" component={ChatScreen} />
+        <Tab.Screen name="Knowledge" component={KnowledgeScreen} />
         <Tab.Screen name="Tasks" component={TaskQueueScreen} />
+        <Tab.Screen name="Testing" component={TestingScreen} />
+        <Tab.Screen name="Freelance" component={FreelanceScreen} />
+        <Tab.Screen name="Plugins" component={PluginScreen} />
         <Tab.Screen name="Settings" component={SettingsScreen} />
       </Tab.Navigator>
     </NavigationContainer>

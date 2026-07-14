@@ -6,6 +6,7 @@ import { useSettingsStore } from './src/stores/settings';
 import { useChatStore } from './src/stores/chat';
 import { useConnectivity } from './src/hooks/useConnectivity';
 import wsService from './src/services/websocket';
+import pushNotificationService from './src/services/notifications';
 import AppNavigator from './src/navigation/AppNavigator';
 import LoginScreen from './src/screens/LoginScreen';
 import { colors } from './src/utils/theme';
@@ -21,6 +22,10 @@ const AppContent = () => {
     const init = async () => {
       await loadSettings();
       await initialize();
+      // Initialize push notifications after auth
+      if (isAuthenticated) {
+        pushNotificationService.initialize();
+      }
     };
     init();
   }, []);

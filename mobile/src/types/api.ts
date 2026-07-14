@@ -131,6 +131,7 @@ export interface TaskTemplate {
   category: string;
   price_cents: number;
   estimated_minutes: number;
+  required_capabilities?: string[];
 }
 
 export interface FreelanceJob {
@@ -140,9 +141,28 @@ export interface FreelanceJob {
   status: string;
   params: Record<string, any>;
   result?: Record<string, any>;
+  result_summary?: string;
+  result_files?: Record<string, string>;
   price_cents: number;
+  amount_cents?: number;
+  amount_dollars?: number;
+  customer_email?: string;
+  customer_name?: string;
+  description?: string;
+  stripe_payment_link?: string | null;
   created_at: string;
   completed_at?: string;
+  paid_at?: string;
+}
+
+export interface FreelanceOrderResponse {
+  job_id: string;
+  template_name?: string;
+  amount_cents: number;
+  amount_dollars: number;
+  status: string;
+  stripe_payment_link: string | null;
+  message: string;
 }
 
 // Plugin types
@@ -154,6 +174,20 @@ export interface Plugin {
   enabled: boolean;
   author: string;
   settings: Record<string, any>;
+  installed_at?: string;
+  tools?: string[];
+}
+
+// Language types
+export interface LanguageInfo {
+  code: string;
+  name: string;
+  native_name: string;
+}
+
+export interface LanguagesResponse {
+  default: string;
+  supported: LanguageInfo[];
 }
 
 // WebSocket message types

@@ -50,6 +50,10 @@ class User(Base):
         DateTime(timezone=True),
         nullable=True,
     )
+    last_active_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
 
     # Relationships
     conversations: Mapped[list[Conversation]] = relationship(

@@ -19,6 +19,7 @@ from app.api import notifications as notification_routes
 from app.api import plugins as plugin_routes
 from app.api import system as system_routes
 from app.api import sync as sync_routes
+from app.api import smart_home as smart_home_routes
 from app.api import task_queue as task_queue_routes
 from app.api import tasks as task_routes
 from app.api import testing as testing_routes
@@ -143,6 +144,7 @@ app.include_router(memory_routes.router)
 app.include_router(notification_routes.router)
 app.include_router(system_routes.router)
 app.include_router(sync_routes.router)
+app.include_router(smart_home_routes.router)
 app.include_router(task_queue_routes.router)
 app.include_router(testing_routes.router)
 app.include_router(vision_routes.router)

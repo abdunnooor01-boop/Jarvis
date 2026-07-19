@@ -125,12 +125,12 @@ async def list_devices(
     }
 
 
-@router.delete("/devices/{token_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/devices/{token_id}", status_code=status.HTTP_200_OK)
 async def unregister_device(
     token_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> None:
+) -> dict:
     """Unregister a device token."""
     result = await db.execute(
         select(DeviceToken).where(
@@ -152,6 +152,7 @@ async def unregister_device(
         user_id=str(current_user.id),
         token_id=str(token_id),
     )
+    return {"status": "ok", "message": "Device token unregistered"}
 
 
 # ------------------------------------------------------------------ #

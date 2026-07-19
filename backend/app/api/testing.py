@@ -439,12 +439,12 @@ async def generate_test_report(
     )
 
 
-@router.delete("/{run_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{run_id}", status_code=status.HTTP_200_OK)
 async def delete_test_run(
     run_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> None:
+) -> dict:
     """Delete a test run and all its results."""
     result = await db.execute(
         select(TestRun).where(
@@ -464,6 +464,7 @@ async def delete_test_run(
     await db.commit()
 
     logger.info("Test run deleted", run_id=str(run_id))
+    return {"status": "ok", "message": "Test run deleted"}
 
 
 # ---------------------------------------------------------------------------

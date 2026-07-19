@@ -125,7 +125,11 @@ async def list_devices(
     }
 
 
-@router.delete("/devices/{token_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/devices/{token_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
 async def unregister_device(
     token_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),

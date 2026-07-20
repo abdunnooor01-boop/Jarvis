@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -50,6 +51,13 @@ async def lifespan(app: FastAPI) -> None:  # noqa: ARG001
         except Exception:
             logger.info("pgvector extension not available (expected with SQLite)")
         await conn.run_sync(Base.metadata.create_all)
+    # Ensure SQLite DB file is group-writable (multi-user development)
+    if settings.database_url.startswith("sqlite"):
+        import pathlib
+        db_path = pathlib.Path(settings.database_url.replace("sqlite+aiosqlite:///", "").replace("sqlite:///", ""))
+        if db_path.exists():
+            db_path.chmod(0o664)
+            logger.info("Set DB file permissions to 0o664", path=str(db_path))
 
     # Log low-power mode
     if settings.low_power_mode:

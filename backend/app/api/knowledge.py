@@ -124,7 +124,7 @@ async def update_source(
     return FeedSourceResponse.model_validate(source)
 
 
-@router.delete("/sources/{source_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/sources/{source_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_source(
     source_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
@@ -256,7 +256,7 @@ async def mark_all_read(
     return {"marked_read": count}
 
 
-@router.delete("/entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_entry(
     entry_id: uuid.UUID,
     current_user: User = Depends(get_current_user),

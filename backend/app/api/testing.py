@@ -439,7 +439,7 @@ async def generate_test_report(
     )
 
 
-@router.delete("/{run_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{run_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_test_run(
     run_id: uuid.UUID,
     current_user: User = Depends(get_current_user),

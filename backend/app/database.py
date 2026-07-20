@@ -22,13 +22,10 @@ def _get_engine():
     Lazily initialized on first call to save ~0.3s of startup time.
     The @lru_cache ensures the engine is a singleton.
     """
-    return create_async_engine(
-        settings.database_url,
-        echo=settings.debug,
-        pool_size=10,
-        max_overflow=20,
-        pool_pre_ping=True,
-    )
+    engine_kwargs: dict = {"echo": settings.debug}
+    if not settings.database_url.startswith("sqlite"):
+        engine_kwargs.update(pool_size=10, max_overflow=20, pool_pre_ping=True)
+    return create_async_engine(settings.database_url, **engine_kwargs)
 
 
 def get_engine():

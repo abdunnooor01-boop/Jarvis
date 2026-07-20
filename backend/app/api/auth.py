@@ -232,7 +232,7 @@ async def refresh(
     return TokenResponse(access_token=access_token, refresh_token=new_refresh_token)
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def logout(
     body: LogoutRequest | None = None,
     current_user: User = Depends(get_current_user),

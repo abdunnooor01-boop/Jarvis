@@ -8,6 +8,7 @@ from app.models.memory import MemoryEntry
 from app.models.message import Message
 from app.models.notification import DeviceToken, NotificationEvent, NotificationPreference
 from app.models.plugin import Plugin
+from app.models.smart_home import SmartHomeDevice
 from app.models.task_plan import TaskPlan
 from app.models.task_queue import TaskQueueItem
 from app.models.task_step import TaskStep
@@ -34,4 +35,5 @@ __all__ = [
     "NotificationEvent",
     "NotificationPreference",
     "TaskQueueItem",
+    "SmartHomeDevice",
 ]

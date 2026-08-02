@@ -162,7 +162,6 @@ class TestScheduler:
                     report["failed"] = run.failed
                     report["report_path"] = report_path
 
-            self._last_run = datetime.now(UTC)
             self._total_runs += 1
 
             logger.info(
@@ -180,6 +179,11 @@ class TestScheduler:
             report["status"] = "failed"
             report["error"] = str(e)
 
+        # Always record the attempt time — even a failed run must advance the
+        # schedule, otherwise _seconds_until_next_run() returns 5 forever and
+        # the scheduler hammers the DB in a tight loop.
+        self._last_run = datetime.now(UTC)
+
         return report
 
     # ------------------------------------------------------------------
@@ -194,6 +198,12 @@ class TestScheduler:
             await self.run_once()
         except Exception as e:
             logger.error("Initial test cycle failed", error=str(e))
+
+        # Guarantee a baseline even if the initial cycle failed before the
+        # internal try/except — otherwise _seconds_until_next_run() returns 5
+        # forever and the loop hammers the DB.
+        if self._last_run is None:
+            self._last_run = datetime.now(UTC)
 
         # Schedule subsequent runs
         while self._running:

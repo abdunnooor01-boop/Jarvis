@@ -127,6 +127,9 @@ class PipelineOrchestrator:
             self._last_error = str(e)
             report["crawl"] = {"error": str(e)}
             # Don't stop the pipeline — discovery and digest may still run
+            # Always record the attempt so _seconds_until_next_crawl() doesn't
+            # return 5 forever, hammering the DB in a tight loop.
+            self._last_crawl = datetime.now(UTC)
 
         # Step 3: Run tool discovery on new entries
         try:
@@ -201,6 +204,12 @@ class PipelineOrchestrator:
             await self.run_once()
         except Exception as e:
             logger.error("Initial pipeline cycle failed", error=str(e))
+
+        # Guarantee a baseline even if the initial cycle failed before the
+        # internal try/except — otherwise _seconds_until_next_crawl() returns
+        # 5 forever and the loop hammers the DB.
+        if self._last_crawl is None:
+            self._last_crawl = datetime.now(UTC)
 
         # Calculate delay until next scheduled crawl (daily at 2 AM)
         while self._running:

@@ -48,7 +48,12 @@ class ConnectionManager:
             )
             return False
 
-        await websocket.accept()
+        try:
+            await websocket.accept()
+        except RuntimeError:
+            # Accept is already done by the calling endpoint — tolerate a
+            # double-accept so connect() stays usable standalone too.
+            pass
         self.active_connections[user_id] = websocket
         self._connection_counts[user_id] = current_count + 1
         return True
@@ -94,6 +99,11 @@ async def chat_websocket(websocket: WebSocket) -> None:
     db_session = await async_session_factory().__aenter__()
 
     try:
+        # Accept the WebSocket handshake BEFORE any receive — the first ASGI
+        # message is websocket.connect, and receive_text() on it raises
+        # KeyError: 'text' which would leave the handshake uncompleted.
+        await websocket.accept()
+
         # First message must contain auth token
         data = await websocket.receive_text()
 
@@ -148,192 +158,193 @@ async def chat_websocket(websocket: WebSocket) -> None:
         llm_service = get_llm_service()
         tool_executor = ToolExecutor()
 
-        async with websocket:
-            while True:
-                data = await websocket.receive_text()
+        while True:
+            data = await websocket.receive_text()
 
-                # Enforce message size limit
-                if len(data) > settings.ws_max_message_size:
+            # Enforce message size limit
+            if len(data) > settings.ws_max_message_size:
+                await websocket.send_json({
+                    "type": "error",
+                    "detail": f"Message exceeds maximum size of {settings.ws_max_message_size} bytes",
+                })
+                continue
+
+            msg = json.loads(data)
+
+            # Rate limit messages per user
+            if not _check_ws_rate_limit(str(user.id)):
+                await websocket.send_json({
+                    "type": "error",
+                    "detail": "Rate limit exceeded. Please slow down.",
+                })
+                continue
+
+            msg_type = msg.get("type", "message")
+
+            if msg_type == "message":
+                content = msg.get("content", "")
+                conversation_id = msg.get("conversation_id")
+
+                # Sanitize user input
+                content = sanitize_prompt(content)
+
+                # Skip empty messages
+                if not content.strip():
                     await websocket.send_json({
                         "type": "error",
-                        "detail": f"Message exceeds maximum size of {settings.ws_max_message_size} bytes",
+                        "detail": "Message cannot be empty",
                     })
                     continue
 
-                msg = json.loads(data)
-
-                # Rate limit messages per user
-                if not _check_ws_rate_limit(str(user.id)):
-                    await websocket.send_json({
-                        "type": "error",
-                        "detail": "Rate limit exceeded. Please slow down.",
-                    })
-                    continue
-
-                msg_type = msg.get("type", "message")
-
-                if msg_type == "message":
-                    content = msg.get("content", "")
-                    conversation_id = msg.get("conversation_id")
-
-                    # Sanitize user input
-                    content = sanitize_prompt(content)
-
-                    # Skip empty messages
-                    if not content.strip():
-                        await websocket.send_json({
-                            "type": "error",
-                            "detail": "Message cannot be empty",
-                        })
+                # Create or get conversation
+                if conversation_id:
+                    result = await db_session.execute(
+                        select(Conversation).where(
+                            Conversation.id == UUID(conversation_id),
+                            Conversation.user_id == user.id,
+                            Conversation.deleted_at.is_(None),
+                        )
+                    )
+                    conversation = result.scalar_one_or_none()
+                    if conversation is None:
+                        await websocket.send_json(
+                            {
+                                "type": "error",
+                                "detail": "Conversation not found",
+                            }
+                        )
                         continue
-
-                    # Create or get conversation
-                    if conversation_id:
-                        result = await db_session.execute(
-                            select(Conversation).where(
-                                Conversation.id == UUID(conversation_id),
-                                Conversation.user_id == user.id,
-                                Conversation.deleted_at.is_(None),
-                            )
-                        )
-                        conversation = result.scalar_one_or_none()
-                        if conversation is None:
-                            await websocket.send_json(
-                                {
-                                    "type": "error",
-                                    "detail": "Conversation not found",
-                                }
-                            )
-                            continue
-                    else:
-                        conversation = Conversation(user_id=user.id, title=content[:50])
-                        db_session.add(conversation)
-                        await db_session.flush()
-                        await db_session.refresh(conversation)
-                        await websocket.send_json(
-                            {
-                                "type": "conversation_created",
-                                "conversation_id": str(conversation.id),
-                                "title": conversation.title,
-                            }
-                        )
-
-                    # Save user message
-                    user_message = Message(
-                        conversation_id=conversation.id,
-                        role="user",
-                        content=content,
-                    )
-                    db_session.add(user_message)
-
-                    # Get conversation history
-                    history_result = await db_session.execute(
-                        select(Message)
-                        .where(Message.conversation_id == conversation.id)
-                        .order_by(Message.created_at.asc())
-                    )
-                    history = history_result.scalars().all()
-
-                    # Build context for LLM
-                    messages_for_llm = [{"role": m.role, "content": m.content} for m in history]
-
-                    # Inject relevant memories as context
-                    memory_service = MemoryService(db_session)
-                    memory_context = await memory_service.get_relevant_context(
-                        user_id=user.id,
-                        query=content,
-                    )
-                    if memory_context:
-                        messages_for_llm.insert(
-                            0,
-                            {
-                                "role": "system",
-                                "content": memory_context,
-                            },
-                        )
-                        # Notify frontend that memories were recalled
-                        await websocket.send_json(
-                            {
-                                "type": "memory_recall",
-                                "detail": "Relevant context from past conversations injected",
-                            }
-                        )
-
-                    # Stream response from LLM
-                    full_response = ""
-                    async for chunk in llm_service.stream_chat(
-                        messages=messages_for_llm,
-                        tools=tool_executor.get_tool_definitions(),
-                    ):
-                        if chunk["type"] == "content":
-                            full_response += chunk["content"]
-                            await websocket.send_json(
-                                {
-                                    "type": "chunk",
-                                    "content": chunk["content"],
-                                }
-                            )
-                        elif chunk["type"] == "tool_call":
-                            await websocket.send_json(
-                                {
-                                    "type": "tool_call",
-                                    "tool_call_id": chunk.get("id"),
-                                    "tool_name": chunk.get("name"),
-                                    "arguments": chunk.get("arguments"),
-                                }
-                            )
-                            # Execute tool
-                            result = await tool_executor.execute(
-                                tool_name=chunk.get("name", ""),
-                                arguments=chunk.get("arguments", {}),
-                            )
-                            await websocket.send_json(
-                                {
-                                    "type": "tool_result",
-                                    "tool_call_id": chunk.get("id"),
-                                    "result": result,
-                                }
-                            )
-                        elif chunk["type"] == "error":
-                            await websocket.send_json(
-                                {
-                                    "type": "error",
-                                    "detail": chunk.get("content", "LLM error"),
-                                }
-                            )
-
-                    # Save assistant message
-                    if full_response:
-                        assistant_message = Message(
-                            conversation_id=conversation.id,
-                            role="assistant",
-                            content=full_response,
-                        )
-                        db_session.add(assistant_message)
-
-                    # Update conversation timestamp
-                    conversation.title = conversation.title or content[:50]
-
-                    await db_session.commit()
-
+                else:
+                    conversation = Conversation(user_id=user.id, title=content[:50])
+                    db_session.add(conversation)
+                    await db_session.flush()
+                    await db_session.refresh(conversation)
                     await websocket.send_json(
                         {
-                            "type": "done",
+                            "type": "conversation_created",
                             "conversation_id": str(conversation.id),
+                            "title": conversation.title,
                         }
                     )
 
-                elif msg_type == "ping":
-                    await websocket.send_json({"type": "pong"})
+                # Save user message
+                user_message = Message(
+                    conversation_id=conversation.id,
+                    role="user",
+                    content=content,
+                )
+                db_session.add(user_message)
+
+                # Get conversation history
+                history_result = await db_session.execute(
+                    select(Message)
+                    .where(Message.conversation_id == conversation.id)
+                    .order_by(Message.created_at.asc())
+                )
+                history = history_result.scalars().all()
+
+                # Build context for LLM
+                messages_for_llm = [{"role": m.role, "content": m.content} for m in history]
+
+                # Inject relevant memories as context
+                memory_service = MemoryService(db_session)
+                memory_context = await memory_service.get_relevant_context(
+                    user_id=user.id,
+                    query=content,
+                )
+                if memory_context:
+                    messages_for_llm.insert(
+                        0,
+                        {
+                            "role": "system",
+                            "content": memory_context,
+                        },
+                    )
+                    # Notify frontend that memories were recalled
+                    await websocket.send_json(
+                        {
+                            "type": "memory_recall",
+                            "detail": "Relevant context from past conversations injected",
+                        }
+                    )
+
+                # Stream response from LLM
+                full_response = ""
+                async for chunk in llm_service.stream_chat(
+                    messages=messages_for_llm,
+                    tools=tool_executor.get_tool_definitions(),
+                ):
+                    if chunk["type"] == "content":
+                        full_response += chunk["content"]
+                        await websocket.send_json(
+                            {
+                                "type": "chunk",
+                                "content": chunk["content"],
+                            }
+                        )
+                    elif chunk["type"] == "tool_call":
+                        await websocket.send_json(
+                            {
+                                "type": "tool_call",
+                                "tool_call_id": chunk.get("id"),
+                                "tool_name": chunk.get("name"),
+                                "arguments": chunk.get("arguments"),
+                            }
+                        )
+                        # Execute tool
+                        result = await tool_executor.execute(
+                            tool_name=chunk.get("name", ""),
+                            arguments=chunk.get("arguments", {}),
+                        )
+                        await websocket.send_json(
+                            {
+                                "type": "tool_result",
+                                "tool_call_id": chunk.get("id"),
+                                "result": result,
+                            }
+                        )
+                    elif chunk["type"] == "error":
+                        await websocket.send_json(
+                            {
+                                "type": "error",
+                                "detail": chunk.get("content", "LLM error"),
+                            }
+                        )
+
+                # Save assistant message
+                if full_response:
+                    assistant_message = Message(
+                        conversation_id=conversation.id,
+                        role="assistant",
+                        content=full_response,
+                    )
+                    db_session.add(assistant_message)
+
+                # Update conversation timestamp
+                conversation.title = conversation.title or content[:50]
+
+                await db_session.commit()
+
+                await websocket.send_json(
+                    {
+                        "type": "done",
+                        "conversation_id": str(conversation.id),
+                    }
+                )
+
+            elif msg_type == "ping":
+                await websocket.send_json({"type": "pong"})
 
     except WebSocketDisconnect:
         pass
     except json.JSONDecodeError:
+        logger.warning("WS invalid JSON from user %s", getattr(user, "id", None))
         try:
             await websocket.send_json({"type": "error", "detail": "Invalid JSON message"})
         except Exception:
             pass
     except Exception:
+        logger.exception("WS internal error for user %s", getattr(user, "id", None))
         try:
             await websocket.send_json({"type": "error", "detail": "Internal server error"})
         except Exception:

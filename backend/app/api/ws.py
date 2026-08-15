@@ -169,7 +169,16 @@ async def chat_websocket(websocket: WebSocket) -> None:
                 })
                 continue
 
-            msg = json.loads(data)
+            try:
+                msg = json.loads(data)
+            except json.JSONDecodeError:
+                # Malformed JSON — send an error frame but KEEP the connection
+                # open so the client can recover and send again.
+                await websocket.send_json({
+                    "type": "error",
+                    "detail": "Invalid JSON message",
+                })
+                continue
 
             # Rate limit messages per user
             if not _check_ws_rate_limit(str(user.id)):

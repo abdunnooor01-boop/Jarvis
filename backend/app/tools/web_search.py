@@ -22,7 +22,10 @@ class WebSearchTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Search the web for current information. Use this to find recent news, facts, or data."
+        return (
+            "Search the web for current information. "
+            "Use this to find recent news, facts, or data."
+        )
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -42,8 +45,11 @@ class WebSearchTool(BaseTool):
             "required": ["query"],
         }
 
-    async def execute(self, query: str, max_results: int = 5, **kwargs: Any) -> dict[str, Any]:
+    async def execute(  # type: ignore[override]
+        self, query: str, max_results: int = 5, **kwargs: Any
+    ) -> dict[str, Any]:
         """Execute a web search."""
+        _ = kwargs  # Allow extra kwargs for interface compatibility
         if settings.tavily_api_key:
             return await self._search_tavily(query, max_results)
 

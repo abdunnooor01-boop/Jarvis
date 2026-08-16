@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useAuthStore } from '../stores/auth'
+import { register, ApiError } from '../utils/api'
 
 interface SignupProps {
   onSwitch: () => void
@@ -10,11 +11,25 @@ const Signup: React.FC<SignupProps> = ({ onSwitch }) => {
   const [email, setEmail] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Mock signup
-    setAuth('mock-token', { email, displayName })
+    setError(null)
+    setIsSubmitting(true)
+    try {
+      const data = await register(email, password, displayName)
+      await setAuth(data.access_token, { email, displayName })
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message)
+      } else {
+        setError('Unable to reach the server. Please try again.')
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -29,6 +44,8 @@ const Signup: React.FC<SignupProps> = ({ onSwitch }) => {
             onChange={(e) => setDisplayName(e.target.value)}
             className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             required
+            maxLength={100}
+            autoComplete="name"
           />
         </div>
         <div>
@@ -39,6 +56,7 @@ const Signup: React.FC<SignupProps> = ({ onSwitch }) => {
             onChange={(e) => setEmail(e.target.value)}
             className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             required
+            autoComplete="email"
           />
         </div>
         <div>
@@ -49,13 +67,20 @@ const Signup: React.FC<SignupProps> = ({ onSwitch }) => {
             onChange={(e) => setPassword(e.target.value)}
             className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             required
+            minLength={8}
+            autoComplete="new-password"
           />
+          <p className="mt-1 text-[10px] text-slate-500">At least 8 characters, with uppercase, lowercase and a digit.</p>
         </div>
+        {error && (
+          <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</p>
+        )}
         <button
           type="submit"
-          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2.5 text-sm font-semibold transition-colors"
+          disabled={isSubmitting}
+          className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg py-2.5 text-sm font-semibold transition-colors"
         >
-          Sign Up
+          {isSubmitting ? 'Creating account...' : 'Sign Up'}
         </button>
       </form>
       <p className="mt-6 text-center text-sm text-slate-500">

@@ -6,7 +6,10 @@ const api = {
     get: (key: string) => ipcRenderer.invoke('store-get', key),
     set: (key: string, value: any) => ipcRenderer.invoke('store-set', key, value),
     delete: (key: string) => ipcRenderer.invoke('store-delete', key)
-  }
+  },
+  getBackendUrlSync: () => ipcRenderer.sendSync('get-backend-url-sync'),
+  getBackendUrl: () => ipcRenderer.invoke('get-backend-url'),
+  setBackendUrl: (url: string) => ipcRenderer.invoke('set-backend-url', url)
 }
 
 if (process.contextIsolated) {

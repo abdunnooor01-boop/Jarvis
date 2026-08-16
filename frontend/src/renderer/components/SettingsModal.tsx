@@ -1,13 +1,19 @@
-import React from 'react'
-import { X, Moon, Sun, Monitor } from 'lucide-react'
+import React, { useState } from 'react'
+import { X, Moon, Sun, Monitor, Brain, Trash2, Puzzle } from 'lucide-react'
 import { useSettingsStore } from '../stores/settings'
+import { useMemoryStore } from '../stores/memory'
+import { usePluginStore } from '../stores/plugins'
 
 interface SettingsModalProps {
   onClose: () => void
+  onOpenPlugins: () => void
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onOpenPlugins }) => {
   const { theme, setTheme, openAiKey, setOpenAiKey } = useSettingsStore()
+  const { isEnabled, toggleMemory, clearAllMemories, memories } = useMemoryStore()
+  const { plugins } = usePluginStore()
+  const [isConfirmingClear, setIsConfirmingClear] = useState(false)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -60,6 +66,88 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
+            </div>
+          </section>
+
+          <section className="border-t border-slate-200 dark:border-slate-800 pt-6">
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase mb-4">
+              <Brain size={16} className="text-indigo-500" />
+              Memory
+            </label>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-medium text-slate-900 dark:text-white">Enable long-term memory</h4>
+                  <p className="text-xs text-slate-400">Jarvis recalls past conversations to provide continuity.</p>
+                </div>
+                <button
+                  onClick={toggleMemory}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                    isEnabled ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      isEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800/80">
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  Memories stored: <span className="font-semibold text-slate-900 dark:text-white">{memories.length}</span>
+                </div>
+                {isConfirmingClear ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        clearAllMemories()
+                        setIsConfirmingClear(false)
+                      }}
+                      className="text-xs bg-red-600 hover:bg-red-700 text-white px-2.5 py-1.5 rounded-lg font-medium transition-colors"
+                    >
+                      Yes, Clear
+                    </button>
+                    <button
+                      onClick={() => setIsConfirmingClear(false)}
+                      className="text-xs bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-2.5 py-1.5 rounded-lg font-medium transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setIsConfirmingClear(true)}
+                    disabled={memories.length === 0}
+                    className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 disabled:opacity-40 disabled:hover:bg-transparent px-2.5 py-1.5 rounded-lg font-medium transition-colors"
+                  >
+                    <Trash2 size={14} />
+                    Clear all memories
+                  </button>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section className="border-t border-slate-200 dark:border-slate-800 pt-6">
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase mb-4">
+              <Puzzle size={16} className="text-indigo-500" />
+              Plugins
+            </label>
+            <div className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800/80">
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                Installed plugins: <span className="font-semibold text-slate-900 dark:text-white">{plugins.length}</span>
+              </div>
+              <button
+                onClick={() => {
+                  onClose()
+                  onOpenPlugins()
+                }}
+                className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 px-3 py-1.5 rounded-lg font-semibold transition-colors"
+              >
+                Manage Plugins
+              </button>
             </div>
           </section>
 

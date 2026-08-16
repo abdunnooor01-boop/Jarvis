@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import structlog
 
-from app.config import settings
-
 
 def setup_logging() -> None:
     """Configure structured JSON logging with structlog."""

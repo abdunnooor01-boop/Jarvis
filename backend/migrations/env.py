@@ -7,11 +7,11 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from app.database import Base
 from app.config import settings
+from app.database import Base
 
 # Import all models so they are registered with Base.metadata
-from app.models import User, Conversation, Message  # noqa: F401
+from app.models import Conversation, Message, User  # noqa: F401
 
 config = context.config
 

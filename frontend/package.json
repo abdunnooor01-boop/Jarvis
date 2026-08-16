@@ -3,11 +3,18 @@
   "version": "1.0.0",
   "description": "Jarvis AI Assistant Desktop App",
   "main": "./out/main/index.js",
-  "author": "Shipwright Engineering",
+  "author": {
+    "name": "Shipwright Engineering",
+    "email": "engineering@shipwright.io"
+  },
+  "homepage": "https://shipwright.io",
   "license": "MIT",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "build:win": "electron-vite build && electron-builder --win",
+    "build:mac": "electron-vite build && electron-builder --mac",
+    "build:linux": "electron-vite build && electron-builder --linux",
     "preview": "electron-vite preview",
     "pack": "electron-builder --dir",
     "dist": "electron-builder"
@@ -36,5 +43,60 @@
     "tailwindcss": "^4.0.0",
     "typescript": "^5.4.5",
     "vite": "^5.2.10"
+  },
+  "build": {
+    "appId": "com.shipwright.jarvis",
+    "productName": "Jarvis",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*",
+      "resources/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "resources/icons/win/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "resources/icons/mac/icon.icns"
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 410,
+          "y": 150,
+          "type": "link",
+          "path": "/Applications"
+        },
+        {
+          "x": 130,
+          "y": 150,
+          "type": "file"
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility",
+      "icon": "resources/icons/png",
+      "maintainer": "Shipwright Engineering <engineering@shipwright.io>"
+    }
   }
 }

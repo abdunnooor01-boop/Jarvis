@@ -7,7 +7,10 @@ pydantic-settings==2.7.0
 # Database
 sqlalchemy[asyncio]==2.0.36
 asyncpg==0.30.0
+aiosqlite==0.20.0
+psycopg2-binary==2.9.10
 alembic==1.14.0
+pgvector==0.4.0
 
 # Auth
 python-jose[cryptography]==3.3.0
@@ -24,10 +27,37 @@ structlog==24.4.0
 # Redis
 redis[hiredis]==5.2.1
 
+# Security
+safety>=3.2.0
+
 # WebSocket
 websockets==14.1
+
+# Voice
+edge-tts>=6.1.0
+silero-vad>=5.1.0
+onnxruntime>=1.17.0
+webrtcvad>=2.0.10
+pydub>=0.25.1
+# Note: silero-vad uses ONNX runtime when onnx=True is passed to load_silero_vad().
+# No PyTorch or CUDA packages (torch, triton) needed — saves ~4.6 GB disk space.
+
+# Computer Control
+pyautogui>=0.9.54
+pyperclip>=1.9.0
+mss>=9.0.2
+pytesseract>=0.3.13
+Pillow>=10.0.0
+playwright>=1.48.0
 
 # Utilities
 python-multipart==0.0.19
 email-validator==2.3.0
 orjson==3.10.12
+PyYAML>=6.0.1
+
+# Payments
+stripe==15.3.0
+# Knowledge Feeds - Phase 10
+feedparser>=6.0.11
+beautifulsoup4>=4.12.0

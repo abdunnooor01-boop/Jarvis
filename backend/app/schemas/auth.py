@@ -36,6 +36,12 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class LogoutRequest(BaseModel):
+    """Logout request payload (optional — token can be inferred from auth header)."""
+
+    access_token: str | None = None
+
+
 class UserResponse(BaseModel):
     """Public user profile response."""
 

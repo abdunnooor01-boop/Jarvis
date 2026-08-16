@@ -47,6 +47,9 @@ app.whenReady().then(() => {
   ipcMain.handle('store-delete', (_, key) => store.delete(key))
 
   // Custom IPC handlers for dynamic backend URL configuration
+  // The desktop app is a LOCAL companion: it talks to the local Jarvis
+  // backend (FastAPI on localhost:8000) by default. JARVIS_BACKEND_URL /
+  // VITE_API_URL / the stored value override that for hosted deployments.
   ipcMain.on('get-backend-url-sync', (event) => {
     event.returnValue = process.env.JARVIS_BACKEND_URL || process.env.VITE_API_URL || store.get('backend-url') || 'http://localhost:8000'
   })

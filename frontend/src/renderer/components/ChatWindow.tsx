@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Loader2, Mic, MicOff, Volume2, VolumeX } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useChatStore, Message } from '../stores/chat'
+import { useAuthStore } from '../stores/auth'
 import { useWebSocket } from '../hooks/useWebSocket'
 import JarvisFace from './JarvisFace'
 
@@ -81,9 +82,21 @@ function speakSentence(text: string) {
 // Component
 // ---------------------------------------------------------------------------
 const ChatWindow: React.FC = () => {
-  const { currentConversationId, messages, isLoading, addMessage, setLoading } = useChatStore()
+  const { currentConversationId, messages, isLoading, historyLoading, addMessage, setLoading, loadHistory } = useChatStore()
+  const { token } = useAuthStore()
   const scrollRef = useRef<HTMLDivElement>(null)
   const { sendMessage } = useWebSocket()
+  // Load message history whenever the active conversation changes (initial
+  // conversation after refresh, sidebar selection, or a WS-created one — the
+  // store skips conversations that already have local/streaming messages).
+  useEffect(() => {
+    if (currentConversationId && token) {
+      loadHistory(currentConversationId, token)
+    }
+    // loadHistory reads live state internally and is stable; only re-run on
+    // conversation/token changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentConversationId, token])
 
   // Voice input state
   const [isListening, setIsListening] = useState(false)
@@ -292,7 +305,13 @@ const ChatWindow: React.FC = () => {
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 pb-2 space-y-4">
         {currentMessages.length === 0 && !isLoading && (
           <div className="flex flex-col items-center justify-center pt-4">
-            <p className="text-xs text-slate-600 italic">Say something to start...</p>
+            {historyLoading ? (
+              <p className="text-xs text-slate-500 italic flex items-center gap-2">
+                <Loader2 size={12} className="animate-spin" /> Loading history...
+              </p>
+            ) : (
+              <p className="text-xs text-slate-600 italic">Say something to start...</p>
+            )}
           </div>
         )}
 

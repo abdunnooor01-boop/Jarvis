@@ -27,6 +27,21 @@ export interface ConversationSummary {
   id: string
   title: string
 }
+/** A single message as returned by the conversation-detail endpoint. */
+export interface MessageHistoryItem {
+  id: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  created_at: string
+}
+/** Full conversation including its message history. */
+export interface ConversationDetail {
+  id: string
+  title: string
+  messages: MessageHistoryItem[]
+  created_at: string
+  updated_at: string
+}
 
 export class ApiError extends Error {
   status: number
@@ -102,6 +117,15 @@ export function getMe(token: string): Promise<MeResponse> {
 
 export function fetchConversations(token: string): Promise<ConversationSummary[]> {
   return apiFetch<ConversationSummary[]>('/api/v1/chat/conversations', {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+/** Fetch a single conversation including its full message history. */
+export function fetchConversationDetail(
+  conversationId: string,
+  token: string
+): Promise<ConversationDetail> {
+  return apiFetch<ConversationDetail>(`/api/v1/chat/conversations/${conversationId}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
 }

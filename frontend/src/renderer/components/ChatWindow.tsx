@@ -21,23 +21,39 @@ const isSpeechSupported = SpeechRecognitionAPI !== null
 // ---------------------------------------------------------------------------
 const synth = typeof window !== 'undefined' ? window.speechSynthesis : null
 
-/** Find a British male voice, falling back to any UK voice, then default. */
-function getBritishVoice(): SpeechSynthesisVoice | null {
+/** Male first names that indicate a masculine voice when they appear in a voice's name. */
+const MALE_VOICE_NAMES = [
+  'david', 'mark', 'daniel', 'george', 'james', 'john', 'michael', 'guy', 'ryan',
+  'alex', 'peter', 'thomas', 'christopher', 'eric', 'william', 'brian', 'paul',
+  'samuel', 'robert', 'richard', 'charles', 'matthew', 'andrew', 'steven', 'aaron',
+  'adam', 'benjamin', 'jacob', 'joseph', 'kevin', 'stephen', 'nick', 'tony', 'henry',
+  'oliver', 'arthur', 'harry', 'edward', 'albert', 'jack', 'leo', 'oscar',
+]
+
+/** Find a male voice (British-first), falling back to any UK/en voice, then default. */
+function getMaleVoice(): SpeechSynthesisVoice | null {
   if (!synth) return null
   const voices = synth.getVoices()
+  const nameHasMale = (v: SpeechSynthesisVoice) => /male/i.test(v.name)
+  const nameHasMaleFirstName = (v: SpeechSynthesisVoice) => {
+    const n = v.name.toLowerCase()
+    return MALE_VOICE_NAMES.some((name) => new RegExp(`\\b${name}\\b`).test(n))
+  }
+  // 1. en-GB voices whose name is explicitly male or contains a male first name
   const britishMale = voices.find(
-    (v) =>
-      v.lang.startsWith('en-GB') &&
-      (v.name.toLowerCase().includes('daniel') ||
-        v.name.toLowerCase().includes('oliver') ||
-        v.name.toLowerCase().includes('arthur') ||
-        v.name.toLowerCase().includes('harry') ||
-        v.name.toLowerCase().includes('male'))
+    (v) => v.lang.toLowerCase().startsWith('en-gb') && (nameHasMale(v) || nameHasMaleFirstName(v))
   )
   if (britishMale) return britishMale
-  const british = voices.find((v) => v.lang.startsWith('en-GB'))
+  // 2. ANY-language voice whose name contains "male" (e.g. "Google UK English Male")
+  const anyMale = voices.find(nameHasMale)
+  if (anyMale) return anyMale
+  // 3. en-* voices whose name contains a male first name from the list
+  const englishMale = voices.find((v) => v.lang.toLowerCase().startsWith('en') && nameHasMaleFirstName(v))
+  if (englishMale) return englishMale
+  // 4. fallbacks: any en-GB, any en-*, then the first available voice
+  const british = voices.find((v) => v.lang.toLowerCase().startsWith('en-gb'))
   if (british) return british
-  const english = voices.find((v) => v.lang.startsWith('en'))
+  const english = voices.find((v) => v.lang.toLowerCase().startsWith('en'))
   if (english) return english
   return voices[0] || null
 }
@@ -55,9 +71,10 @@ function buildUtterance(text: string, onEnd?: () => void): SpeechSynthesisUttera
   if (!cleanText) return null
   const utterance = new SpeechSynthesisUtterance(cleanText)
   utterance.rate = 1.0
-  utterance.pitch = 1.0
+  // Slight lower pitch for a more masculine tone
+  utterance.pitch = 0.95
   utterance.volume = 1.0
-  const voice = getBritishVoice()
+  const voice = getMaleVoice()
   if (voice) utterance.voice = voice
   if (onEnd) utterance.onend = onEnd
   return utterance

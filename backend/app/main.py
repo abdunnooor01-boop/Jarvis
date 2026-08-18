@@ -23,6 +23,7 @@ from app.api import sync as sync_routes
 from app.api import task_queue as task_queue_routes
 from app.api import tasks as task_routes
 from app.api import testing as testing_routes
+from app.api import tools as tools_routes
 from app.api import vision as vision_routes
 from app.api import voice as voice_routes
 from app.api.ws import router as ws_routes
@@ -153,6 +154,7 @@ app.include_router(system_routes.router)
 app.include_router(sync_routes.router)
 app.include_router(task_queue_routes.router)
 app.include_router(testing_routes.router)
+app.include_router(tools_routes.router)
 app.include_router(vision_routes.router)
 app.include_router(voice_routes.router)
 app.include_router(plugin_routes.router)

@@ -61,6 +61,11 @@ class OpenAIProvider(LLMProvider):
 
             stream = await self.client.chat.completions.create(**kwargs)
 
+            # OpenAI streams tool-call fragments: the same call index appears
+            # across multiple deltas with partial `arguments` text. Accumulate
+            # by index and yield complete calls once the stream ends.
+            tool_calls_acc: dict[int, dict[str, str]] = {}
+
             async for chunk in stream:
                 if not chunk.choices:
                     continue
@@ -72,13 +77,28 @@ class OpenAIProvider(LLMProvider):
 
                 if delta.tool_calls:
                     for tc in delta.tool_calls:
+                        idx = tc.index if tc.index is not None else 0
+                        acc = tool_calls_acc.setdefault(
+                            idx, {"id": "", "name": "", "arguments": ""}
+                        )
+                        if tc.id:
+                            acc["id"] = tc.id
                         if tc.function:
-                            yield {
-                                "type": "tool_call",
-                                "id": tc.id,
-                                "name": tc.function.name,
-                                "arguments": tc.function.arguments,
-                            }
+                            if tc.function.name:
+                                acc["name"] = tc.function.name
+                            if tc.function.arguments:
+                                acc["arguments"] += tc.function.arguments
+
+            # Yield complete tool calls (in order) after the stream ends
+            for idx in sorted(tool_calls_acc):
+                acc = tool_calls_acc[idx]
+                if acc["name"]:
+                    yield {
+                        "type": "tool_call",
+                        "id": acc["id"] or f"call_{idx}",
+                        "name": acc["name"],
+                        "arguments": acc["arguments"],
+                    }
 
         except Exception as e:
             logger.error("OpenAI streaming error", error=str(e))

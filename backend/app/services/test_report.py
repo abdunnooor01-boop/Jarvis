@@ -7,6 +7,7 @@ with pass/fail summary, per-test results with screenshots, and metadata.
 from __future__ import annotations
 
 import os
+import uuid
 from datetime import UTC, datetime
 from typing import Any
 
@@ -51,8 +52,9 @@ class TestReportGenerator:
         run_id: str,
     ) -> str | None:
         """Internal helper to generate the report."""
+        run_uuid = uuid.UUID(str(run_id))
         result = await db.execute(
-            select(TestRun).where(TestRun.id == run_id)
+            select(TestRun).where(TestRun.id == run_uuid)
         )
         run = result.scalar_one_or_none()
 

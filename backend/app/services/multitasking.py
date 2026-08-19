@@ -80,8 +80,9 @@ class MultitaskingEngine:
     async def get_status(self, task_id: str) -> dict[str, Any] | None:
         """Get the current status of a task."""
         async with async_session_factory() as db:
+            item_id = uuid.UUID(str(task_id))
             result = await db.execute(
-                select(TaskQueueItem).where(TaskQueueItem.id == task_id)
+                select(TaskQueueItem).where(TaskQueueItem.id == item_id)
             )
             item = result.scalar_one_or_none()
             if item is None:
@@ -116,8 +117,9 @@ class MultitaskingEngine:
             self._active_tasks.pop(task_id, None)
 
         async with async_session_factory() as db:
+            item_id = uuid.UUID(str(task_id))
             result = await db.execute(
-                select(TaskQueueItem).where(TaskQueueItem.id == task_id)
+                select(TaskQueueItem).where(TaskQueueItem.id == item_id)
             )
             item = result.scalar_one_or_none()
             if item and item.status in ("queued", "running"):

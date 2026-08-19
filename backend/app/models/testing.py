@@ -179,6 +179,7 @@ class TestRun(Base):
         back_populates="run",
         cascade="all, delete-orphan",
         order_by="TestResult.step_number",
+        lazy="selectin",
     )
 
     def __repr__(self) -> str:

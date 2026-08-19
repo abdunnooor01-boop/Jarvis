@@ -22,7 +22,7 @@ from app.services.multitasking import get_engine
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
+router = APIRouter(prefix="/api/v1/queue", tags=["task-queue"])
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

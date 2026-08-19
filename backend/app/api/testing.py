@@ -731,6 +731,10 @@ async def trigger_test_run(
         plan_id=str(plan_id),
         user_id=str(current_user.id),
     )
+    # Kick off background execution (matches create_test_run) so the run
+    # progresses pending -> running -> completed and a report can be produced.
+    import asyncio
+    asyncio.create_task(_testing_engine.run_test_plan(str(test_run.id)))
     return _run_to_response(test_run)
 
 

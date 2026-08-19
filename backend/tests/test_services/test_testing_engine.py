@@ -135,7 +135,7 @@ async def _create_test_run(
         db.add(result)
 
     await db.commit()
-    await db.refresh(run)
+    await db.refresh(run, ["results"])
     return run
 
 

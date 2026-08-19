@@ -12,23 +12,21 @@ from typing import Any
 
 import pytest
 import pytest_asyncio
-from pathlib import Path
-import tempfile
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
+from pathlib import Path
+import tempfile
 
 from app.database import Base
 from app.models.testing import TestResult, TestRun  # noqa: F401 - ensures tables are registered
 
-# pytest-asyncio runs each async test on its own event loop, so an in-memory
-# SQLite StaticPool connection would be bound to one loop and cannot be reused
-# on the next loop (MissingGreenlet). Use a temporary file DB with NullPool so
-# each connection is fresh on the current loop while the on-disk data is
-# shared by every session. A single temp dir is created per run.
+# pytest-asyncio gives each async test its own event loop, so an in-memory
+# SQLite StaticPool connection (one shared connection) cannot cross loops.
+# Use a temporary FILE database with NullPool: every connection is fresh on
+# the current loop while the on-disk data is shared by every test/session.
 _TEST_TMPDIR = tempfile.mkdtemp(prefix="jarvis-testing-db")
-_TEST_DB_FILE = Path(_TEST_TMPDIR) / "testing.db"
-TEST_DATABASE_URL = f"sqlite+aiosqlite:///{_TEST_DB_FILE}"
+TEST_DATABASE_URL = f"sqlite+aiosqlite:///{Path(_TEST_TMPDIR)/'testing.db'}"
 
 test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, poolclass=NullPool)
 test_session_factory = async_sessionmaker(

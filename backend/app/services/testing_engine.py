@@ -56,13 +56,18 @@ class TestingEngine:
             run_id: The UUID of the TestRun to execute.
         """
         logger.info("Starting test run", run_id=run_id)
+        try:
+            run_uuid = uuid.UUID(str(run_id))
+        except ValueError:
+            logger.error("Invalid test run id", run_id=run_id)
+            return
 
         async with async_session_factory() as db:
             # Load the test run
             result = await db.execute(
                 select(TestRun)
                 .options(selectinload(TestRun.results))
-                .where(TestRun.id == run_id)
+                .where(TestRun.id == run_uuid)
             )
             run = result.scalar_one_or_none()
 

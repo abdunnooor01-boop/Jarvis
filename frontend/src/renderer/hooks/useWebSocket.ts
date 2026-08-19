@@ -1,8 +1,16 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useAuthStore } from '../stores/auth'
-import { useChatStore, Message } from '../stores/chat'
+import { useChatStore, Message, ToolActionInfo } from '../stores/chat'
 import { useMemoryStore } from '../stores/memory'
 import { useTaskStore } from '../stores/tasks'
+
+export interface ToolDecisionPayload {
+  proposalId: string
+  decision: 'approve' | 'deny'
+  remember?: boolean
+}
+
+export type SendToolDecision = (payload: ToolDecisionPayload) => void
 
 function getWsUrl(): string {
   // Allow override via env var
@@ -161,6 +169,46 @@ export const useWebSocket = () => {
         }
       } else if (data.type === 'connected') {
         console.log('WS authenticated as user:', data.user_id)
+      } else if (data.type === 'tool_call') {
+        // Optimistic action-log entry — a proposal (or auto-approved result)
+        // follows; both resolve it by tool_call_id.
+        const convId = activeConvIdRef.current
+        if (convId) {
+          const action: ToolActionInfo = {
+            toolCallId: data.tool_call_id,
+            toolName: data.tool_name,
+            arguments: data.arguments ?? {},
+            status: 'requested',
+            timestamp: new Date().toISOString(),
+          }
+          useChatStore.getState().addAction(convId, action)
+        }
+      } else if (data.type === 'tool_proposal') {
+        // Approval needed — remember the proposal id so the owner's decision
+        // can be sent back, and surface the pending card.
+        const convId = activeConvIdRef.current
+        if (convId) {
+          useChatStore.getState().updateAction(convId, data.tool_call_id, {
+            proposalId: data.proposal_id,
+            reason: data.reason,
+            status: 'pending',
+          })
+        }
+      } else if (data.type === 'tool_result') {
+        // Authoritative outcome from the backend (approved/denied/unavailable).
+        const convId = activeConvIdRef.current
+        if (convId) {
+          const status = data.unavailable
+            ? 'unavailable'
+            : data.denied
+              ? 'denied'
+              : 'executed'
+          useChatStore.getState().updateAction(convId, data.tool_call_id, {
+            status,
+            result: data.result ?? undefined,
+            approval: data.approval,
+          })
+        }
       } else if (data.type && data.type.startsWith('task_')) {
         useTaskStore.getState().handleWebSocketEvent(data)
       }
@@ -226,5 +274,12 @@ export const useWebSocket = () => {
     }
   }
 
-  return { sendMessage }
+  /** Send an owner approval decision for a tool proposal (Phase 15c). */
+  const sendToolDecision = useCallback((payload: ToolDecisionPayload) => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({ type: 'tool_decision', ...payload }))
+    }
+  }, [])
+
+  return { sendMessage, sendToolDecision }
 }

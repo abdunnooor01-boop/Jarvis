@@ -16,6 +16,9 @@ interface ApiShim {
   getBackendUrlSync: () => string
   getBackendUrl: () => Promise<string>
   setBackendUrl: (url: string) => Promise<void>
+  // Web (hosted) builds have no local host, so the local executor is never
+  // available here — the backend already blocks these tools in hosted mode.
+  localExecutor?: any
 }
 
 // Only install the shim if window.api doesn't exist (i.e., not in Electron)

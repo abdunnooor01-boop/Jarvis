@@ -5,6 +5,7 @@ import { useChatStore, Message } from '../stores/chat'
 import { useAuthStore } from '../stores/auth'
 import { useWebSocket } from '../hooks/useWebSocket'
 import JarvisFace from './JarvisFace'
+import { ApprovalCard } from './ApprovalCard'
 
 // ---------------------------------------------------------------------------
 // Speech recognition helpers
@@ -102,7 +103,7 @@ const ChatWindow: React.FC = () => {
   const { currentConversationId, messages, isLoading, historyLoading, addMessage, setLoading, loadHistory } = useChatStore()
   const { token } = useAuthStore()
   const scrollRef = useRef<HTMLDivElement>(null)
-  const { sendMessage } = useWebSocket()
+  const { sendMessage, sendToolDecision } = useWebSocket()
   // Load message history whenever the active conversation changes (initial
   // conversation after refresh, sidebar selection, or a WS-created one — the
   // store skips conversations that already have local/streaming messages).
@@ -332,7 +333,16 @@ const ChatWindow: React.FC = () => {
           </div>
         )}
 
-        {currentMessages.map((msg) => (
+        {currentMessages.map((msg) =>
+          msg.kind === 'action' && msg.action && currentConversationId ? (
+            /* Phase 15c — tool action entry: approval card or log row */
+            <ApprovalCard
+              key={msg.id}
+              conversationId={currentConversationId}
+              action={msg.action}
+              sendToolDecision={sendToolDecision}
+            />
+          ) : (
           <div
             key={msg.id}
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}
@@ -381,7 +391,8 @@ const ChatWindow: React.FC = () => {
               )}
             </div>
           </div>
-        ))}
+          )
+        )}
 
         {isLoading && (
           <div className="flex justify-start">

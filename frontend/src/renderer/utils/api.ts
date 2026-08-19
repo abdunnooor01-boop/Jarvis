@@ -129,3 +129,41 @@ export function fetchConversationDetail(
     headers: { Authorization: `Bearer ${token}` },
   })
 }
+
+// ---------------------------------------------------------------------------
+// Tool approval allowlist (Phase 15c) — "always allow this tool" persistence.
+// ---------------------------------------------------------------------------
+
+export interface ToolAllowlistEntry {
+  id: string
+  tool_name: string
+  /** Partial pattern; null/undefined matches ANY call for the tool. */
+  arguments: Record<string, unknown> | null
+  created_at: string
+}
+
+export function listToolAllowlist(token: string): Promise<ToolAllowlistEntry[]> {
+  return apiFetch<{ entries: ToolAllowlistEntry[] }>('/api/v1/tools/allowlist', {
+    headers: { Authorization: `Bearer ${token}` },
+  }).then((res) => res.entries)
+}
+
+/** Remember an approval: pass arguments=null to allow ANY call for the tool. */
+export function addToolAllowlist(
+  token: string,
+  toolName: string,
+  arguments_: Record<string, unknown> | null = null
+): Promise<ToolAllowlistEntry> {
+  return apiFetch<ToolAllowlistEntry>('/api/v1/tools/allowlist', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ tool_name: toolName, arguments: arguments_ }),
+  })
+}
+
+export function removeToolAllowlist(token: string, entryId: string): Promise<null> {
+  return apiFetch<null>(`/api/v1/tools/allowlist/${entryId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}

@@ -4,6 +4,7 @@ import { useChatStore } from '../stores/chat'
 import { useAuthStore } from '../stores/auth'
 
 interface SidebarProps {
+  onNewChat: () => void
   onOpenSettings: () => void
   onOpenPlugins: () => void
   onOpenTasks: () => void
@@ -13,7 +14,7 @@ interface SidebarProps {
   onOpenTesting: () => void
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ onOpenSettings, onOpenPlugins, onOpenTasks, onOpenDevConsole, onOpenFreelance, onOpenKnowledge, onOpenTesting }) => {
+const Sidebar: React.FC<SidebarProps> = ({ onNewChat, onOpenSettings, onOpenPlugins, onOpenTasks, onOpenDevConsole, onOpenFreelance, onOpenKnowledge, onOpenTesting }) => {
   const { conversations, currentConversationId, setCurrentConversation } = useChatStore()
   const { user, logout } = useAuthStore()
 
@@ -22,7 +23,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onOpenSettings, onOpenPlugins, onOpen
       <div className="p-4">
         <button
           className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors"
-          onClick={() => {/* TODO: New chat */}}
+          onClick={onNewChat}
         >
           <Plus size={16} />
           New Conversation

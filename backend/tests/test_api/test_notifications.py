@@ -78,6 +78,7 @@ async def test_fcm_service_not_configured() -> None:
 @pytest.mark.asyncio
 async def test_fcm_send_push_success() -> None:
     """Test FCMService.send_push success path."""
+    pytest.importorskip("firebase_admin", reason="firebase_admin not installed")
     from app.services.fcm import FCMService
     import firebase_admin.messaging
 
@@ -97,6 +98,7 @@ async def test_fcm_send_push_success() -> None:
 @pytest.mark.asyncio
 async def test_fcm_send_multicast_success() -> None:
     """Test FCMService.send_multicast success path."""
+    pytest.importorskip("firebase_admin", reason="firebase_admin not installed")
     from app.services.fcm import FCMService
     import firebase_admin.messaging
 
@@ -120,12 +122,14 @@ async def test_fcm_send_multicast_success() -> None:
 @pytest.mark.asyncio
 async def test_shared_types_exist() -> None:
     """Test that the shared notification types file exists."""
-    import os
-
-    path = "/home/team/shared/jarvis-repo/packages/shared/src/notification.ts"
-    assert os.path.exists(path), f"Shared types file not found at {path}"
-    content = open(path).read()
+    from pathlib import Path
+    path = (
+        Path(__file__).resolve().parents[3]
+        / "packages" / "shared" / "src" / "types" / "notification.ts"
+    )
+    assert path.exists(), f"Shared types file not found at {path}"
+    content = path.read_text()
     assert "NotificationEventType" in content
     assert "NotificationPayload" in content
     assert "DeviceToken" in content
-    assert "NotificationPreferences" in content
+    assert "NotificationPreference" in content

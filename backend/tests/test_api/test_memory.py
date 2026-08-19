@@ -206,12 +206,12 @@ async def test_preferences_user_isolation(
     """Test preferences are isolated between users."""
     user_a_data = {
         "email": "user-a-test@example.com",
-        "password": "password123",
+        "password": "Password123!",
         "display_name": "User A",
     }
     user_b_data = {
         "email": "user-b-test@example.com",
-        "password": "password456",
+        "password": "Password456!",
         "display_name": "User B",
     }
 

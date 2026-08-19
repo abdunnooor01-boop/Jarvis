@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -55,11 +56,18 @@ class TestingEngine:
             run_id: The UUID of the TestRun to execute.
         """
         logger.info("Starting test run", run_id=run_id)
+        try:
+            run_uuid = uuid.UUID(str(run_id))
+        except ValueError:
+            logger.error("Invalid test run id", run_id=run_id)
+            return
 
         async with async_session_factory() as db:
             # Load the test run
             result = await db.execute(
-                select(TestRun).where(TestRun.id == run_id)
+                select(TestRun)
+                .options(selectinload(TestRun.results))
+                .where(TestRun.id == run_uuid)
             )
             run = result.scalar_one_or_none()
 
@@ -439,10 +447,13 @@ class TestingEngine:
     def _parse_vision_result(
         self,
         vision_result: dict[str, Any],
+        criterion: str | None = None,
     ) -> tuple[bool, str]:
         """Parse a vision analysis result to extract pass/fail and detail.
 
         Handles both JSON-structured and free-text responses.
+        ``criterion`` (if given) is used as fallback detail when the vision
+        result carries no explanation.
         """
         import json as json_module
         import re
@@ -453,7 +464,7 @@ class TestingEngine:
         try:
             data = json_module.loads(content)
             passed = data.get("passed", False)
-            detail = data.get("detail", content)
+            detail = data.get("detail") or criterion or content
             return bool(passed), detail
         except (json_module.JSONDecodeError, ValueError):
             pass
@@ -464,7 +475,7 @@ class TestingEngine:
             try:
                 data = json_module.loads(json_match.group(1))
                 passed = data.get("passed", False)
-                detail = data.get("detail", content)
+                detail = data.get("detail") or criterion or content
                 return bool(passed), detail
             except json_module.JSONDecodeError:
                 pass

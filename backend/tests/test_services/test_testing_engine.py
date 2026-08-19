@@ -61,8 +61,19 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest.fixture
-def engine() -> Any:
-    """Create a fresh TestingEngine for each test (no singleton)."""
+def engine(monkeypatch: Any) -> Any:
+    """Create a fresh TestingEngine for each test (no singleton).
+
+    The engine opens its own session from the module-level
+    ``async_session_factory`` bound to the real Postgres. For isolated unit
+    tests we redirect that factory to the in-memory test DB so runs can see
+    the rows created by the ``db_session`` fixture.
+    """
+    from app.services import testing_engine as testing_engine_module
+    from tests.test_services.conftest_testing import test_session_factory
+    monkeypatch.setattr(
+        testing_engine_module, "async_session_factory", test_session_factory
+    )
     from app.services.testing_engine import TestingEngine
     return TestingEngine()
 
@@ -124,7 +135,7 @@ async def _create_test_run(
         db.add(result)
 
     await db.commit()
-    await db.refresh(run)
+    await db.refresh(run, ["results"])
     return run
 
 

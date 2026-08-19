@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -16,6 +17,14 @@ from app.tools.keyboard import KeyboardTool
 from app.tools.app_launch import AppLaunchTool
 from app.tools.browser import BrowserTool
 
+
+# Mouse/keyboard/screenshot tools drive a real X display via pyautogui; they
+# cannot run on a headless host (no DISPLAY) — skip them there instead of
+# failing with KeyError('DISPLAY').
+requires_display = pytest.mark.skipif(
+    os.environ.get("DISPLAY") is None,
+    reason="requires an X display (headless environment has none)",
+)
 
 # ------------------------------------------------------------------ #
 #  ClipboardTool
@@ -147,6 +156,7 @@ class TestTerminalTool:
 #  ScreenshotTool
 # ------------------------------------------------------------------ #
 
+@requires_display
 class TestScreenshotTool:
     """Tests for ScreenshotTool."""
 
@@ -235,6 +245,7 @@ class TestScreenReadTool:
 #  MouseTool
 # ------------------------------------------------------------------ #
 
+@requires_display
 class TestMouseTool:
     """Tests for MouseTool."""
 
@@ -287,6 +298,7 @@ class TestMouseTool:
 #  KeyboardTool
 # ------------------------------------------------------------------ #
 
+@requires_display
 class TestKeyboardTool:
     """Tests for KeyboardTool."""
 

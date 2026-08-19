@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import uuid
 import pytest
 
 from app.models.task_queue import TaskQueueItem
@@ -104,9 +105,9 @@ async def test_task_queue_api_router() -> None:
     routes = [(r.path, list(r.methods)) for r in router.routes]
     paths = [r[0] for r in routes]
 
-    assert "" in paths  # POST /api/v1/tasks (submit)
-    assert "/{task_id}" in paths  # GET /api/v1/tasks/{id}
-    assert "/{task_id}/cancel" in paths  # POST /api/v1/tasks/{id}/cancel
+    assert "/api/v1/tasks" in paths  # POST /api/v1/tasks (submit)
+    assert "/api/v1/tasks/{task_id}" in paths  # GET /api/v1/tasks/{id}
+    assert "/api/v1/tasks/{task_id}/cancel" in paths  # POST /api/v1/tasks/{id}/cancel
 
 
 @pytest.mark.asyncio
@@ -127,12 +128,19 @@ async def test_task_submit_schema() -> None:
 
 
 @pytest.mark.asyncio
-async def test_model_default_status() -> None:
-    """Test that new TaskQueueItem defaults to 'queued' status."""
+async def test_model_default_status(db_session) -> None:
+    """Test that new TaskQueueItem defaults to 'queued' status.
+
+    SQLAlchemy ``mapped_column(default=...)`` values are applied at flush
+    time, so the object must be added and flushed before defaults appear.
+    """
     item = TaskQueueItem(
+        user_id=uuid.uuid4(),
         task_type="test",
         params={},
     )
+    db_session.add(item)
+    await db_session.flush()
     assert item.status == "queued"
     assert item.progress == 0
     assert item.retry_count == 0

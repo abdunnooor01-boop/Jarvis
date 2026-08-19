@@ -123,7 +123,7 @@ class TestTestRunCreateRequestSchema:
         """Test URL exceeding max length (should fail)."""
         with pytest.raises(ValidationError):
             TestRunCreateRequest(
-                url="https://" + "x" * 2040,
+                url="https://" + "x" * 2050,
                 criteria=[TestCriterionCreate(criterion="Test", test_type="screenshot")],
             )
 

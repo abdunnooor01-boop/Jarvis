@@ -128,7 +128,7 @@ class TestRunResponse(BaseModel):
     """Test run response returned to the client (combined fields)."""
 
     id: UUID
-    plan_id: UUID
+    plan_id: UUID | None = None
     user_id: UUID
     url: str
     name: str | None = None

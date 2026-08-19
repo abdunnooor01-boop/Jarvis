@@ -187,7 +187,7 @@ class FeedCrawler:
         """
         async with async_session_factory() as db:
             result = await db.execute(
-                select(FeedSource).where(FeedSource.id == source_id)
+                select(FeedSource).where(FeedSource.id == uuid.UUID(str(source_id)))
             )
             source = result.scalar_one_or_none()
 

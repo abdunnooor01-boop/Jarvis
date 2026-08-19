@@ -87,10 +87,6 @@ async def lifespan(app: FastAPI) -> None:  # noqa: ARG001
     )
 
     # Start the knowledge feed pipeline orchestrator
-    # NOTE (follow-up task a3e93b53 — "Fix scheduler interval bugs + re-enable
-    # pipeline/test scheduler"): the crawl/test interval handling here has
-    # known correctness issues outstanding. If you touch scheduler start/stop
-    # or interval logic, coordinate with a3e93b53 — this block is owned by it.
     from app.services.scheduler import scheduler as pipeline_scheduler
 
     pipeline_scheduler.start()

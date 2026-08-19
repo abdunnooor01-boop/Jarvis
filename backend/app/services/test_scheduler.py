@@ -100,6 +100,9 @@ class TestScheduler:
             A report dict with run_id, status, and outcomes.
         """
         criteria = criteria or _DEFAULT_CRITERIA
+        # Record the attempt time up-front so the scheduler sleeps until the
+        # real next interval even when a cycle fails (prevents 5s tight-loop).
+        self._last_run = datetime.now(UTC)
         # Use a system user ID if none provided (freelancer system user)
         if user_id is None:
             user_id = await self._get_system_user_id()
@@ -162,7 +165,6 @@ class TestScheduler:
                     report["failed"] = run.failed
                     report["report_path"] = report_path
 
-            self._last_run = datetime.now(UTC)
             self._total_runs += 1
 
             logger.info(

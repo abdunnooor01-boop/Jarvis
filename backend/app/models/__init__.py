@@ -12,6 +12,7 @@ from app.models.task_plan import TaskPlan
 from app.models.task_queue import TaskQueueItem
 from app.models.task_step import TaskStep
 from app.models.testing import TestPlan, TestResult, TestRun, TestSubscription
+from app.models.tool_allowlist import ToolAllowlistEntry
 from app.models.user import User
 
 __all__ = [
@@ -34,4 +35,5 @@ __all__ = [
     "NotificationEvent",
     "NotificationPreference",
     "TaskQueueItem",
+    "ToolAllowlistEntry",
 ]

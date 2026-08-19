@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
+import uuid
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
@@ -14,15 +17,22 @@ from app.config import settings
 from app.core.auth import decode_token
 from app.core.dependencies import is_token_blacklisted
 from app.core.logging import get_logger
-from app.core.rate_limiter import check_rate_limit
 from app.core.security import sanitize_prompt
 from app.database import async_session_factory
+from app.models.audit_log import AuditLog
 from app.models.conversation import Conversation
 from app.models.message import Message
 from app.models.user import User
 from app.services.llm import get_llm_service
 from app.services.memory import MemoryService
 from app.services.tool_executor import ToolExecutor
+from app.services.tool_policy import (
+    APPROVAL_TIMEOUT_SECONDS,
+    MAX_TOOL_TURNS,
+    ToolPolicyService,
+    blocked_in_hosted_mode,
+    tool_requires_approval,
+)
 
 logger = get_logger(__name__)
 
@@ -90,6 +100,127 @@ def _check_ws_rate_limit(user_id: str) -> bool:
     timestamps.append(now)
     _ws_message_timestamps[user_id] = timestamps
     return True
+
+
+def _parse_tool_arguments(arguments: Any) -> dict[str, Any]:
+    """Normalize LLM tool arguments (JSON string or dict) to a dict."""
+    if isinstance(arguments, dict):
+        return arguments
+    if isinstance(arguments, str):
+        try:
+            parsed = json.loads(arguments)
+            return parsed if isinstance(parsed, dict) else {}
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+
+def _log_tool_execution(
+    db_session: Any,
+    user_id: str,
+    tool_name: str,
+    arguments: dict[str, Any],
+    status_code: str,
+) -> None:
+    """Write an audit-log entry for a tool execution (approved/denied/auto)."""
+    db_session.add(
+        AuditLog(
+            event_type="tool_execution",
+            actor_id=user_id,
+            resource=tool_name,
+            action="execute",
+            status=status_code,
+            details={"arguments": arguments},
+        )
+    )
+
+
+async def _decide_tool_approval(
+    websocket: WebSocket,
+    db_session: Any,
+    user_id: str,
+    tool_call_id: str,
+    tool_name: str,
+    arguments: dict[str, Any],
+) -> tuple[bool, str]:
+    """Decide whether a tool call may execute.
+
+    Returns (approved, reason). The decision chain is:
+      policy classification -> user allowlist -> owner approval over WS.
+    """
+    if not tool_requires_approval(tool_name, arguments):
+        return True, "auto-approved by policy"
+
+    policy = ToolPolicyService(db_session)
+    if await policy.is_allowlisted(user_id, tool_name, arguments):
+        return True, "allowlisted"
+
+    proposal_id = str(uuid.uuid4())
+    await websocket.send_json(
+        {
+            "type": "tool_proposal",
+            "proposal_id": proposal_id,
+            "tool_call_id": tool_call_id,
+            "tool_name": tool_name,
+            "arguments": arguments,
+            "reason": "This action requires your approval",
+        }
+    )
+
+    while True:
+        try:
+            raw = await asyncio.wait_for(
+                websocket.receive_text(), timeout=APPROVAL_TIMEOUT_SECONDS
+            )
+        except TimeoutError:
+            return False, "Approval request timed out — action not executed"
+        except Exception:
+            return False, "Connection lost — action not executed"
+
+        try:
+            decision = json.loads(raw)
+        except json.JSONDecodeError:
+            await websocket.send_json({"type": "error", "detail": "Invalid JSON message"})
+            continue
+
+        if decision.get("type") == "ping":
+            await websocket.send_json({"type": "pong"})
+            continue
+
+        if decision.get("type") != "tool_decision":
+            # Not an approval decision — keep waiting (client busy).
+            continue
+        if decision.get("proposal_id") != proposal_id:
+            continue
+
+        if decision.get("decision") == "approve":
+            if decision.get("remember"):
+                await policy.add_allowlist_entry(
+                    user_id=user_id,
+                    tool_name=tool_name,
+                    arguments=arguments,
+                )
+            return True, "approved by owner"
+        return False, "Action denied by owner"
+
+
+def _assistant_tool_message(tool_calls: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build the assistant message with tool_calls for the LLM continuation."""
+    message: dict[str, Any] = {
+        "role": "assistant",
+        "tool_calls": [
+            {
+                "id": tc.get("id") or f"call_{i}",
+                "type": "function",
+                "function": {
+                    "name": tc.get("name", ""),
+                    "arguments": tc.get("arguments", ""),
+                },
+            }
+            for i, tc in enumerate(tool_calls)
+        ],
+    }
+    return message
 
 
 @router.websocket("/ws/v1/chat")
@@ -277,48 +408,148 @@ async def chat_websocket(websocket: WebSocket) -> None:
                         }
                     )
 
-                # Stream response from LLM
+                # Stream response from LLM — multi-turn tool loop with
+                # approval gating: the model may emit tool calls, each is
+                # approved/denied per policy + allowlist + owner decision,
+                # results are fed back, and the model continues until it
+                # produces a final answer.
                 full_response = ""
-                async for chunk in llm_service.stream_chat(
-                    messages=messages_for_llm,
-                    tools=tool_executor.get_tool_definitions(),
-                ):
-                    if chunk["type"] == "content":
-                        full_response += chunk["content"]
-                        await websocket.send_json(
-                            {
-                                "type": "chunk",
-                                "content": chunk["content"],
-                            }
-                        )
-                    elif chunk["type"] == "tool_call":
+                tool_definitions = tool_executor.get_tool_definitions()
+
+                for _turn in range(MAX_TOOL_TURNS):
+                    tool_calls: list[dict[str, Any]] = []
+                    turn_error = False
+
+                    async for chunk in llm_service.stream_chat(
+                        messages=messages_for_llm,
+                        tools=tool_definitions,
+                    ):
+                        if chunk["type"] == "content":
+                            full_response += chunk["content"]
+                            await websocket.send_json(
+                                {
+                                    "type": "chunk",
+                                    "content": chunk["content"],
+                                }
+                            )
+                        elif chunk["type"] == "tool_call":
+                            tool_calls.append(chunk)
+                        elif chunk["type"] == "error":
+                            turn_error = True
+                            await websocket.send_json(
+                                {
+                                    "type": "error",
+                                    "detail": chunk.get("content", "LLM error"),
+                                }
+                            )
+
+                    if not tool_calls or turn_error:
+                        break
+
+                    # Let the model see the tool calls it just made.
+                    messages_for_llm.append(_assistant_tool_message(tool_calls))
+
+                    for tc in tool_calls:
+                        tool_name = tc.get("name", "")
+                        arguments = _parse_tool_arguments(tc.get("arguments"))
+                        tool_call_id = tc.get("id") or str(uuid.uuid4())
+
                         await websocket.send_json(
                             {
                                 "type": "tool_call",
-                                "tool_call_id": chunk.get("id"),
-                                "tool_name": chunk.get("name"),
-                                "arguments": chunk.get("arguments"),
+                                "tool_call_id": tool_call_id,
+                                "tool_name": tool_name,
+                                "arguments": arguments,
                             }
                         )
-                        # Execute tool
-                        result = await tool_executor.execute(
-                            tool_name=chunk.get("name", ""),
-                            arguments=chunk.get("arguments", {}),
+
+                        # Hosted (web/cloud) mode: Jarvis has no local host
+                        # access, so high-impact desktop-control tools can
+                        # never run — regardless of allowlist or approval.
+                        # Report them as unavailable and let the model explain.
+                        if settings.jarvis_mode == "hosted" and blocked_in_hosted_mode(
+                            tool_name, arguments
+                        ):
+                            _log_tool_execution(
+                                db_session,
+                                str(user.id),
+                                tool_name,
+                                arguments,
+                                "blocked-hosted",
+                            )
+                            blocked_result = {
+                                "status": "unavailable",
+                                "reason": "hosted mode — action not executed",
+                            }
+                            await websocket.send_json(
+                                {
+                                    "type": "tool_result",
+                                    "tool_call_id": tool_call_id,
+                                    "tool_name": tool_name,
+                                    "result": blocked_result,
+                                    "unavailable": True,
+                                }
+                            )
+                            messages_for_llm.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": tool_call_id,
+                                    "content": json.dumps(blocked_result),
+                                }
+                            )
+                            continue
+
+                        approved, reason = await _decide_tool_approval(
+                            websocket=websocket,
+                            db_session=db_session,
+                            user_id=str(user.id),
+                            tool_call_id=tool_call_id,
+                            tool_name=tool_name,
+                            arguments=arguments,
                         )
-                        await websocket.send_json(
+
+                        if approved:
+                            result = await tool_executor.execute(
+                                tool_name=tool_name,
+                                arguments=arguments,
+                            )
+                            _log_tool_execution(
+                                db_session, str(user.id), tool_name, arguments, "approved"
+                            )
+                            await websocket.send_json(
+                                {
+                                    "type": "tool_result",
+                                    "tool_call_id": tool_call_id,
+                                    "tool_name": tool_name,
+                                    "result": result,
+                                    "approval": reason,
+                                }
+                            )
+                        else:
+                            _log_tool_execution(
+                                db_session, str(user.id), tool_name, arguments, "denied"
+                            )
+                            result = {"error": reason, "denied": True}
+                            await websocket.send_json(
+                                {
+                                    "type": "tool_result",
+                                    "tool_call_id": tool_call_id,
+                                    "tool_name": tool_name,
+                                    "result": result,
+                                    "denied": True,
+                                }
+                            )
+
+                        # Feed the outcome back so the model can continue.
+                        messages_for_llm.append(
                             {
-                                "type": "tool_result",
-                                "tool_call_id": chunk.get("id"),
-                                "result": result,
+                                "role": "tool",
+                                "tool_call_id": tool_call_id,
+                                "content": json.dumps(result),
                             }
                         )
-                    elif chunk["type"] == "error":
-                        await websocket.send_json(
-                            {
-                                "type": "error",
-                                "detail": chunk.get("content", "LLM error"),
-                            }
-                        )
+
+                    # Loop again — the model now sees the tool results.
 
                 # Save assistant message
                 if full_response:

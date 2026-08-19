@@ -105,9 +105,9 @@ async def test_task_queue_api_router() -> None:
     routes = [(r.path, list(r.methods)) for r in router.routes]
     paths = [r[0] for r in routes]
 
-    assert "/api/v1/tasks" in paths  # POST /api/v1/tasks (submit)
-    assert "/api/v1/tasks/{task_id}" in paths  # GET /api/v1/tasks/{id}
-    assert "/api/v1/tasks/{task_id}/cancel" in paths  # POST /api/v1/tasks/{id}/cancel
+    assert "/api/v1/queue" in paths  # POST /api/v1/queue (submit)
+    assert "/api/v1/queue/{task_id}" in paths  # GET /api/v1/queue/{id}
+    assert "/api/v1/queue/{task_id}/cancel" in paths  # POST /api/v1/queue/{id}/cancel
 
 
 @pytest.mark.asyncio

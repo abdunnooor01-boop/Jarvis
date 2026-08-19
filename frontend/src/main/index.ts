@@ -2,8 +2,19 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import Store from 'electron-store'
+import { LocalActionExecutor } from './local-executor'
 
 const store = new Store()
+
+// Phase 15b — the main-process local action executor: runs approved shell /
+// file / app actions on the owner's machine, gated by approval + allowlist +
+// destructive-op confirmation. The backend remains the approval authority and
+// still enforces hosted-mode blocking server-side.
+const localExecutor = new LocalActionExecutor({
+  persistAllowlist: (list) => store.set('local-executor-allowlist', list)
+})
+const persistedAllowlist = (store.get('local-executor-allowlist') as string[]) || undefined
+localExecutor.loadAllowlist(persistedAllowlist as string[])
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -60,6 +71,17 @@ app.whenReady().then(() => {
     store.set('backend-url', url)
     return true
   })
+
+  // --- Phase 15b Local Action Executor IPC surface -------------------------
+  // The renderer (chat loop) calls these to run an owner-approved local
+  // action on the owner's machine and get the result back into the chat.
+  ipcMain.handle('local-action:authorize', (_, payload) => localExecutor.authorize(payload))
+  ipcMain.handle('local-action:execute', (_, payload) => localExecutor.execute(payload))
+  ipcMain.handle('local-action:revoke', (_, id) => localExecutor.revoke(id))
+  ipcMain.handle('local-action:state', () => localExecutor.getState())
+  ipcMain.handle('local-action:allowlist:list', () => localExecutor.listAllowlist())
+  ipcMain.handle('local-action:allowlist:add', (_, entry) => localExecutor.addAllowlist(entry))
+  ipcMain.handle('local-action:allowlist:remove', (_, entry) => localExecutor.removeAllowlist(entry))
 
   createWindow()
 

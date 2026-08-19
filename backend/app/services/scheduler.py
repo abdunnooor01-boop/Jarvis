@@ -90,6 +90,9 @@ class PipelineOrchestrator:
             "digest": None,
         }
 
+        # Record the attempt time up-front so the scheduler sleeps until the
+        # real next interval even when a cycle fails (prevents 5s tight-loop).
+        self._last_crawl = datetime.now(UTC)
         # Step 1: Ensure default sources exist
         await self._crawler.ensure_default_sources()
 
@@ -108,7 +111,6 @@ class PipelineOrchestrator:
                 "entries_stored": entries_stored,
                 "errors": errors,
             }
-            self._last_crawl = datetime.now(UTC)
             self._total_crawls += 1
 
             if errors:

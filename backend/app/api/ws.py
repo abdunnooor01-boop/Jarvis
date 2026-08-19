@@ -17,7 +17,6 @@ from app.config import settings
 from app.core.auth import decode_token
 from app.core.dependencies import is_token_blacklisted
 from app.core.logging import get_logger
-from app.core.rate_limiter import check_rate_limit
 from app.core.security import sanitize_prompt
 from app.database import async_session_factory
 from app.models.audit_log import AuditLog
@@ -31,6 +30,7 @@ from app.services.tool_policy import (
     APPROVAL_TIMEOUT_SECONDS,
     MAX_TOOL_TURNS,
     ToolPolicyService,
+    blocked_in_hosted_mode,
     tool_requires_approval,
 )
 
@@ -172,7 +172,7 @@ async def _decide_tool_approval(
             raw = await asyncio.wait_for(
                 websocket.receive_text(), timeout=APPROVAL_TIMEOUT_SECONDS
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return False, "Approval request timed out — action not executed"
         except Exception:
             return False, "Connection lost — action not executed"
@@ -462,6 +462,42 @@ async def chat_websocket(websocket: WebSocket) -> None:
                                 "arguments": arguments,
                             }
                         )
+
+                        # Hosted (web/cloud) mode: Jarvis has no local host
+                        # access, so high-impact desktop-control tools can
+                        # never run — regardless of allowlist or approval.
+                        # Report them as unavailable and let the model explain.
+                        if settings.jarvis_mode == "hosted" and blocked_in_hosted_mode(
+                            tool_name, arguments
+                        ):
+                            _log_tool_execution(
+                                db_session,
+                                str(user.id),
+                                tool_name,
+                                arguments,
+                                "blocked-hosted",
+                            )
+                            blocked_result = {
+                                "status": "unavailable",
+                                "reason": "hosted mode — action not executed",
+                            }
+                            await websocket.send_json(
+                                {
+                                    "type": "tool_result",
+                                    "tool_call_id": tool_call_id,
+                                    "tool_name": tool_name,
+                                    "result": blocked_result,
+                                    "unavailable": True,
+                                }
+                            )
+                            messages_for_llm.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": tool_call_id,
+                                    "content": json.dumps(blocked_result),
+                                }
+                            )
+                            continue
 
                         approved, reason = await _decide_tool_approval(
                             websocket=websocket,

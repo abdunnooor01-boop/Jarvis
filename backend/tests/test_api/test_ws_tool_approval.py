@@ -9,6 +9,7 @@ provider to verify the Phase 15 protocol end to end:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from typing import Any
 
@@ -36,7 +37,16 @@ class FakeWebSocket:
 
     async def receive_text(self) -> str:
         if self._responses:
-            return json.dumps(self._responses.pop(0))
+            resp = self._responses.pop(0)
+            # A tool_decision with proposal_id "any" is a wildcard that
+            # should match the most recent tool_proposal the handler sent.
+            # Substitute the real proposal_id so proposal matching passes.
+            if resp.get("type") == "tool_decision" and resp.get("proposal_id") == "any":
+                for m in reversed(self.sent):
+                    if m.get("type") == "tool_proposal":
+                        resp = {**resp, "proposal_id": m["proposal_id"]}
+                        break
+            return json.dumps(resp)
         # No more client messages — hang until the test cancels the handler.
         await self._hang
         raise RuntimeError("unreachable")
@@ -117,6 +127,7 @@ async def test_tool_call_requires_approval_and_runs_after_approve(
     client: AsyncClient, sample_user_data: dict, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Approval flow: proposal -> approve -> tool_result -> model continues."""
+    monkeypatch.setattr(ws_module.settings, "jarvis_mode", "desktop")
     token = await _register(client, sample_user_data)
     fake_ws = _install_fakes(
         monkeypatch,
@@ -135,10 +146,8 @@ async def test_tool_call_requires_approval_and_runs_after_approve(
         await _wait_for_done(fake_ws)
     finally:
         task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError, RuntimeError):
             await task
-        except (asyncio.CancelledError, RuntimeError):
-            pass
 
     types = [f.get("type") for f in fake_ws.sent]
     assert types[0] == "connected"
@@ -162,6 +171,7 @@ async def test_tool_call_denied_does_not_execute(
     client: AsyncClient, sample_user_data: dict, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Deny flow: proposal -> deny -> denied tool_result -> model continues."""
+    monkeypatch.setattr(ws_module.settings, "jarvis_mode", "desktop")
     token = await _register(client, sample_user_data)
     fake_ws = _install_fakes(
         monkeypatch,
@@ -180,10 +190,8 @@ async def test_tool_call_denied_does_not_execute(
         await _wait_for_done(fake_ws)
     finally:
         task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError, RuntimeError):
             await task
-        except (asyncio.CancelledError, RuntimeError):
-            pass
 
     proposals = _sent_of_type(fake_ws, "tool_proposal")
     assert len(proposals) == 1
@@ -204,6 +212,7 @@ async def test_allowlisted_tool_runs_without_proposal(
     client: AsyncClient, sample_user_data: dict, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A pre-remembered tool call executes without an approval prompt."""
+    monkeypatch.setattr(ws_module.settings, "jarvis_mode", "desktop")
     token = await _register(client, sample_user_data)
     headers = {"Authorization": f"Bearer {token}"}
     resp = await client.post(
@@ -229,10 +238,8 @@ async def test_allowlisted_tool_runs_without_proposal(
         await _wait_for_done(fake_ws)
     finally:
         task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError, RuntimeError):
             await task
-        except (asyncio.CancelledError, RuntimeError):
-            pass
 
     assert _sent_of_type(fake_ws, "tool_proposal") == []
     results = _sent_of_type(fake_ws, "tool_result")
@@ -268,12 +275,55 @@ async def test_safe_tool_runs_without_approval(
         await _wait_for_done(fake_ws)
     finally:
         task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError, RuntimeError):
             await task
-        except (asyncio.CancelledError, RuntimeError):
-            pass
 
     assert _sent_of_type(fake_ws, "tool_proposal") == []
     results = _sent_of_type(fake_ws, "tool_result")
     assert len(results) == 1
     assert results[0]["approval"] == "auto-approved by policy"
+
+
+@pytest.mark.asyncio
+async def test_hosted_mode_blocks_high_impact_tool_without_approval(
+    client: AsyncClient, sample_user_data: dict, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Hosted (web) mode returns unavailable for desktop-control tools.
+
+    Even though ``terminal`` requires approval, in hosted mode it can never
+    run, so the backend must not emit an approval prompt — it reports the
+    action as unavailable so the model can explain, and never executes.
+    """
+    monkeypatch.setattr(ws_module.settings, "jarvis_mode", "hosted")
+    token = await _register(client, sample_user_data)
+    fake_ws = _install_fakes(
+        monkeypatch,
+        script=[
+            [_terminal_tool_call()],
+            [{"type": "content", "content": "I can't run that here."}],
+        ],
+        responses=[
+            {"token": token},
+            {"type": "message", "content": "run a command"},
+        ],
+    )
+    task = await _drive(fake_ws)
+    try:
+        await _wait_for_done(fake_ws)
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError, RuntimeError):
+            await task
+
+    # No approval prompt is raised for a tool that can never run.
+    assert _sent_of_type(fake_ws, "tool_proposal") == []
+    results = _sent_of_type(fake_ws, "tool_result")
+    assert len(results) == 1
+    assert results[0].get("unavailable") is True
+    assert results[0]["result"]["status"] == "unavailable"
+    assert results[0]["result"]["reason"] == "hosted mode — action not executed"
+
+    assert any(
+        f.get("type") == "chunk" and f.get("content") == "I can't run that here."
+        for f in fake_ws.sent
+    )

@@ -6,6 +6,7 @@ import pytest
 
 from app.services.tool_policy import (
     ToolPolicyService,
+    blocked_in_hosted_mode,
     tool_requires_approval,
 )
 
@@ -37,6 +38,28 @@ class TestPolicyClassification:
 
     def test_unknown_tool_defaults_to_approval_required(self) -> None:
         assert tool_requires_approval("mystery_tool", {}) is True
+
+
+class TestHostedModeBlocking:
+    """High-impact desktop-control tools must never run in hosted (web) mode."""
+
+    def test_desktop_control_tools_are_blocked_in_hosted_mode(self) -> None:
+        for tool in ("terminal", "mouse", "keyboard", "smart_click", "smart_type",
+                     "app_launch", "browser"):
+            assert blocked_in_hosted_mode(tool, {}) is True, tool
+
+    def test_file_and_clipboard_writes_blocked_reads_allowed(self) -> None:
+        assert blocked_in_hosted_mode("file_ops", {"action": "read"}) is False
+        assert blocked_in_hosted_mode("file_ops", {"action": "list"}) is False
+        assert blocked_in_hosted_mode("file_ops", {"action": "write"}) is True
+        assert blocked_in_hosted_mode("file_ops", {"action": "delete"}) is True
+        assert blocked_in_hosted_mode("clipboard", {"action": "read"}) is False
+        assert blocked_in_hosted_mode("clipboard", {"action": "write"}) is True
+
+    def test_research_and_observe_tools_stay_available(self) -> None:
+        assert blocked_in_hosted_mode("web_search", {}) is False
+        assert blocked_in_hosted_mode("screenshot", {}) is False
+        assert blocked_in_hosted_mode("screen_read", {}) is False
 
 
 @pytest.mark.asyncio

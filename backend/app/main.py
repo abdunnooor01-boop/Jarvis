@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -18,8 +17,8 @@ from app.api import knowledge as knowledge_routes
 from app.api import memory as memory_routes
 from app.api import notifications as notification_routes
 from app.api import plugins as plugin_routes
-from app.api import system as system_routes
 from app.api import sync as sync_routes
+from app.api import system as system_routes
 from app.api import task_queue as task_queue_routes
 from app.api import tasks as task_routes
 from app.api import testing as testing_routes
@@ -88,6 +87,10 @@ async def lifespan(app: FastAPI) -> None:  # noqa: ARG001
     )
 
     # Start the knowledge feed pipeline orchestrator
+    # NOTE (follow-up task a3e93b53 — "Fix scheduler interval bugs + re-enable
+    # pipeline/test scheduler"): the crawl/test interval handling here has
+    # known correctness issues outstanding. If you touch scheduler start/stop
+    # or interval logic, coordinate with a3e93b53 — this block is owned by it.
     from app.services.scheduler import scheduler as pipeline_scheduler
 
     pipeline_scheduler.start()

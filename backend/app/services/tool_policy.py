@@ -60,6 +60,39 @@ APPROVAL_REQUIRED_TOOLS: frozenset[str] = frozenset(
     }
 )
 
+# Tools that only make sense when Jarvis runs locally on the owner's machine.
+# In hosted (web/cloud) mode these can NEVER execute — the backend has no host
+# access — so they are rejected with ``unavailable`` regardless of allowlist
+# or approval. Read-only/observational/research tools stay available.
+HOSTED_BLOCKED_TOOLS: frozenset[str] = frozenset(
+    {
+        "terminal",
+        "mouse",
+        "keyboard",
+        "smart_click",
+        "smart_type",
+        "app_launch",
+        "browser",
+    }
+)
+
+
+def blocked_in_hosted_mode(tool_name: str, arguments: dict[str, Any] | None) -> bool:
+    """Return True when a tool cannot run in hosted (web) mode.
+
+    Hosted mode is a cloud/web deployment — it has no access to a user's host
+    machine, so shell commands, input injection, app launch, browser control,
+    and mutating file/clipboard actions are unavailable. Read-only actions on
+    stateful tools (e.g. ``file_ops action=read``) remain host-safe.
+    """
+    if tool_name in HOSTED_BLOCKED_TOOLS:
+        return True
+    if tool_name in ACTION_SENSITIVE_TOOLS:
+        action = str((arguments or {}).get("action", "read")).lower()
+        return action in SENSITIVE_ACTIONS
+    return False
+
+
 # Default timeout (seconds) the backend waits for an owner decision on a
 # proposed tool call before treating it as denied.
 APPROVAL_TIMEOUT_SECONDS: int = 300

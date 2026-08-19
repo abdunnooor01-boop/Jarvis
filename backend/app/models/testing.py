@@ -88,10 +88,10 @@ class TestRun(Base):
         primary_key=True,
         default=uuid.uuid4,
     )
-    plan_id: Mapped[uuid.UUID] = mapped_column(
+    plan_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid,
         ForeignKey("test_plans.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
     user_id: Mapped[uuid.UUID] = mapped_column(

@@ -89,6 +89,14 @@ class Settings(BaseSettings):
     tools_dir: str = str(Path(__file__).parent / "tools")
     plugins_dir: str = str(Path(__file__).parent / "plugins")
 
+    # Desktop control mode
+    #   hosted  — cloud/web deployment. Jarvis has no local host access, so
+    #             high-impact desktop-control tools (shell, input injection,
+    #             app launch, browser) are unavailable.
+    #   desktop — local desktop app with full desktop-control capability.
+    # Run with JARVIS_MODE=desktop (or set in .env) on the owner's machine.
+    jarvis_mode: Literal["hosted", "desktop"] = "hosted"
+
     # Performance & Power
     low_power_mode: bool = False
     max_memory_mb: int = 0  # 0 = unlimited

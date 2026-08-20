@@ -110,6 +110,13 @@ async def test_connection_lost_mid_approval_denies(
                 raise RuntimeError("connection lost")
             return await super().receive_text()
 
+    # Use the in-memory test session factory so the handler doesn't try to
+    # reach an external DB.
+    from tests.conftest import test_session_factory
+
+    monkeypatch.setattr(
+        ws_module, "async_session_factory", lambda: test_session_factory()
+    )
     token = await _register(client, sample_user_data)
     fake_ws = DropOnApprovalWS(
         responses=[

@@ -101,3 +101,25 @@ async def test_allowlist_exact_and_wildcard_match() -> None:
         assert len(await service.list_allowlist("user-1")) == 1
         # Removing someone else's entry returns False
         assert await service.remove_allowlist_entry("user-2", entries[1].id) is False
+
+
+    def test_file_ops_operation_key_write_blocked_in_hosted(self) -> None:
+        """file_ops uses the ``operation`` arg key; writes/deletes must be
+        blocked in hosted mode (regression: previously they defaulted to
+        ``read`` and were never blocked)."""
+        assert blocked_in_hosted_mode("file_ops", {"operation": "write"}) is True
+        assert blocked_in_hosted_mode("file_ops", {"operation": "delete"}) is True
+        assert blocked_in_hosted_mode("file_ops", {"operation": "read"}) is False
+        assert blocked_in_hosted_mode("file_ops", {"operation": "list"}) is False
+
+    def test_file_ops_operation_key_write_requires_approval(self) -> None:
+        assert tool_requires_approval("file_ops", {"operation": "write"}) is True
+        assert tool_requires_approval("file_ops", {"operation": "delete"}) is True
+        assert tool_requires_approval("file_ops", {"operation": "read"}) is False
+        assert tool_requires_approval("file_ops", {"operation": "list"}) is False
+
+    def test_clipboard_operation_key_write_blocked_and_requires_approval(self) -> None:
+        assert blocked_in_hosted_mode("clipboard", {"operation": "write"}) is True
+        assert blocked_in_hosted_mode("clipboard", {"operation": "read"}) is False
+        assert tool_requires_approval("clipboard", {"operation": "write"}) is True
+        assert tool_requires_approval("clipboard", {"operation": "read"}) is False

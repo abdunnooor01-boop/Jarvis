@@ -67,7 +67,7 @@ async def test_approval_timeout_is_denial_failsafe(
     """A tool against which no owner decision arrives in time is DENIED."""
     monkeypatch.setattr(ws_module, "APPROVAL_TIMEOUT_SECONDS", 0.05)
     monkeypatch.setattr(ws_module.settings, "jarvis_mode", "desktop")
-    token = _register(client, sample_user_data)
+    token = await _register(client, sample_user_data)
     fake_ws = _install_fakes(
         monkeypatch,
         script=[
@@ -110,7 +110,14 @@ async def test_connection_lost_mid_approval_denies(
                 raise RuntimeError("connection lost")
             return await super().receive_text()
 
-    token = _register(client, sample_user_data)
+    # Use the in-memory test session factory so the handler doesn't try to
+    # reach an external DB.
+    from tests.conftest import test_session_factory
+
+    monkeypatch.setattr(
+        ws_module, "async_session_factory", lambda: test_session_factory()
+    )
+    token = await _register(client, sample_user_data)
     fake_ws = DropOnApprovalWS(
         responses=[
             {"token": token},
@@ -150,7 +157,7 @@ async def test_runaway_tool_loop_is_capped(
     the cap.
     """
     monkeypatch.setattr(ws_module.settings, "jarvis_mode", "desktop")
-    token = _register(client, sample_user_data)
+    token = await _register(client, sample_user_data)
 
     tool_call = {
         "type": "tool_call",
@@ -187,7 +194,7 @@ async def test_multiple_tool_calls_each_need_own_approval(
     Approving one must never auto-approve the sibling.
     """
     monkeypatch.setattr(ws_module.settings, "jarvis_mode", "desktop")
-    token = _register(client, sample_user_data)
+    token = await _register(client, sample_user_data)
 
     fake_ws = _install_fakes(
         monkeypatch,
@@ -232,7 +239,7 @@ async def test_hosted_mode_blocks_file_write_at_protocol_level(
     returns ``unavailable`` and never triggers an approval prompt.
     """
     monkeypatch.setattr(ws_module.settings, "jarvis_mode", "hosted")
-    token = _register(client, sample_user_data)
+    token = await _register(client, sample_user_data)
 
     tool_call = {
         "type": "tool_call",
@@ -268,7 +275,7 @@ async def test_hosted_mode_allows_file_read(
 ) -> None:
     """Read-only actions stay usable in hosted mode (no host-side mutation)."""
     monkeypatch.setattr(ws_module.settings, "jarvis_mode", "hosted")
-    token = _register(client, sample_user_data)
+    token = await _register(client, sample_user_data)
 
     tool_call = {
         "type": "tool_call",

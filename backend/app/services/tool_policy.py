@@ -77,6 +77,20 @@ HOSTED_BLOCKED_TOOLS: frozenset[str] = frozenset(
 )
 
 
+def _state_action(arguments: dict[str, Any] | None) -> str:
+    """Return the state-affecting action for a tool call, honoring both the
+    ``action`` and ``operation`` argument keys.
+
+    Stateful tools (file_ops, clipboard) use ``operation`` as their argument
+    key, while older callers pass ``action``. Reading only ``action`` meant a
+    hosted-mode file_ops/clipboard ``operation=write`` silently defaulted to
+    ``read`` and was never blocked or approval-gated. This helper normalizes
+    both keys, defaulting to ``read`` (host-safe).
+    """
+    a = arguments or {}
+    return str(a.get("action") or a.get("operation") or "read").lower()
+
+
 def blocked_in_hosted_mode(tool_name: str, arguments: dict[str, Any] | None) -> bool:
     """Return True when a tool cannot run in hosted (web) mode.
 
@@ -88,8 +102,7 @@ def blocked_in_hosted_mode(tool_name: str, arguments: dict[str, Any] | None) -> 
     if tool_name in HOSTED_BLOCKED_TOOLS:
         return True
     if tool_name in ACTION_SENSITIVE_TOOLS:
-        action = str((arguments or {}).get("action", "read")).lower()
-        return action in SENSITIVE_ACTIONS
+        return _state_action(arguments) in SENSITIVE_ACTIONS
     return False
 
 
@@ -112,7 +125,7 @@ def tool_requires_approval(tool_name: str, arguments: dict[str, Any] | None) -> 
     if tool_name in AUTO_APPROVED_TOOLS or tool_name in OBSERVE_TOOLS:
         return False
     if tool_name in ACTION_SENSITIVE_TOOLS:
-        action = str((arguments or {}).get("action", "read")).lower()
+        action = _state_action(arguments)
         if action in SAFE_ACTIONS:
             return False
         if action in SENSITIVE_ACTIONS:
